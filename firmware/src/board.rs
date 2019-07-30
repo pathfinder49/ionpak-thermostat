@@ -5,10 +5,6 @@ use tm4c129x;
 const LED1: u8 = 0x10; // PK4
 const LED2: u8 = 0x40; // PK6
 
-const HV_PWM: u8 = 0x01;  // PF0
-const FV_PWM: u8 = 0x04;  // PF2
-const FBV_PWM: u8 = 0x01; // PD5
-
 const FD_ADC: u8 = 0x01;  // PE0
 const FV_ADC: u8 = 0x02;  // PE1
 const FBI_ADC: u8 = 0x04; // PE2
@@ -46,88 +42,6 @@ pub const FBI_R223: f32 = 200.0;
 pub const FBI_R224: f32 = 39.0;
 pub const FBI_R225: f32 = 22000.0;
 
-
-pub fn set_led(state: bool) {
-    cortex_m::interrupt::free(|_cs| {
-        let gpio_k = unsafe { &*tm4c129x::GPIO_PORTK::ptr() };
-        if state {
-            gpio_k.data.modify(|r, w| w.data().bits(r.data().bits() | LED2))
-        } else {
-            gpio_k.data.modify(|r, w| w.data().bits(r.data().bits() & !LED2))
-        }
-    });
-}
-
-pub fn get_button() -> bool {
-    let gpio_dat = cortex_m::interrupt::free(|_cs| {
-        let gpio_l = unsafe { &*tm4c129x::GPIO_PORTL::ptr() };
-        gpio_l.data.read().bits() as u8
-    });
-    gpio_dat & BTNN == 0
-}
-
-pub fn set_hv_pwm(duty: u16) {
-    cortex_m::interrupt::free(|_cs| {
-        let pwm0 = unsafe { &*tm4c129x::PWM0::ptr() };
-        pwm0._0_cmpa.write(|w| w.compa().bits(duty));
-    });
-}
-
-pub fn set_fv_pwm(duty: u16) {
-    cortex_m::interrupt::free(|_cs| {
-        let pwm0 = unsafe { &*tm4c129x::PWM0::ptr() };
-        pwm0._1_cmpa.write(|w| w.compa().bits(duty));
-    });
-}
-
-pub fn set_fbv_pwm(duty: u16) {
-    cortex_m::interrupt::free(|_cs| {
-        let pwm0 = unsafe { &*tm4c129x::PWM0::ptr() };
-        pwm0._2_cmpa.write(|w| w.compa().bits(duty));
-    });
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum EmissionRange {
-    Low,  // 22K
-    Med,  // 22K//(200Ω + compensated diode)
-    High  // 22K//(39Ω + uncompensated diode)
-}
-
-pub fn set_emission_range(range: EmissionRange) {
-    cortex_m::interrupt::free(|_cs| {
-        let gpio_p = unsafe { &*tm4c129x::GPIO_PORTP::ptr() };
-        gpio_p.data.modify(|r, w| {
-            let value = r.data().bits() & 0b100111;
-            match range {
-                EmissionRange::Low  => w.data().bits(value | 0b000000),
-                EmissionRange::Med  => w.data().bits(value | 0b001000),
-                EmissionRange::High => w.data().bits(value | 0b010000),
-            }
-        });
-    });
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ElectrometerRange {
-    Low,  // 1G
-    Med,  // 1G//10M
-    High  // 1G//100K
-}
-
-pub fn set_electrometer_range(range: ElectrometerRange) {
-    cortex_m::interrupt::free(|_cs| {
-        let gpio_p = unsafe { &*tm4c129x::GPIO_PORTP::ptr() };
-        gpio_p.data.modify(|r, w| {
-            let value = r.data().bits() & 0b111100;
-            match range {
-                ElectrometerRange::Low  => w.data().bits(value | 0b000000),
-                ElectrometerRange::Med  => w.data().bits(value | 0b000001),
-                ElectrometerRange::High => w.data().bits(value | 0b000010),
-            }
-        });
-    });
-}
 
 pub fn reset_error() {
     cortex_m::interrupt::free(|_cs| {
@@ -187,7 +101,7 @@ pub fn init() {
         // Switch to PLL (sysclk=120MHz)
         sysctl.rsclkcfg.write(|w| unsafe { w.bits(0b1_0_0_1_0011_0000_0000000000_0000000011) });
 
-        // Bring up GPIO ports A, D, E, F, G, K, L, P, Q
+        // Bring up GPIO ports A, D, E, F, G, K, L, M, P, Q
         sysctl.rcgcgpio.modify(|_, w| {
             w.r0().bit(true)
              .r3().bit(true)
@@ -196,6 +110,7 @@ pub fn init() {
              .r6().bit(true)
              .r9().bit(true)
              .r10().bit(true)
+             .r11().bit(true)
              .r13().bit(true)
              .r14().bit(true)
         });
@@ -206,6 +121,7 @@ pub fn init() {
         while !sysctl.prgpio.read().r6().bit() {}
         while !sysctl.prgpio.read().r9().bit() {}
         while !sysctl.prgpio.read().r10().bit() {}
+        while !sysctl.prgpio.read().r11().bit() {}
         while !sysctl.prgpio.read().r13().bit() {}
         while !sysctl.prgpio.read().r14().bit() {}
 
@@ -226,68 +142,74 @@ pub fn init() {
         uart_0.lcrh.write(|w| w.wlen()._8().fen().bit(true));
         uart_0.ctl.write(|w| w.rxe().bit(true).txe().bit(true).uarten().bit(true));
 
-        // Set up LEDs
-        let gpio_k = unsafe { &*tm4c129x::GPIO_PORTK::ptr() };
-        gpio_k.dir.write(|w| w.dir().bits(LED1|LED2));
-        gpio_k.den.write(|w| w.den().bits(LED1|LED2));
-        // Switch LED1 to LAN mode
-        gpio_k.afsel.modify(|_, w| w.afsel().bits(LED1));
-        gpio_k.pctl.modify(|_, w| unsafe { w.pmc4().bits(5) }); // EN0LED0
-
-        // Set up gain and emission range control pins
-        let gpio_p = unsafe { &*tm4c129x::GPIO_PORTP::ptr() };
-        gpio_p.dir.write(|w| w.dir().bits(0b111111));
-        gpio_p.den.write(|w| w.den().bits(0b111111));
-        set_emission_range(EmissionRange::Med);
-        set_electrometer_range(ElectrometerRange::Med);
-
-        // Set up error and pushbutton pins
-        let gpio_l = unsafe { &*tm4c129x::GPIO_PORTL::ptr() };
-        let gpio_q = unsafe { &*tm4c129x::GPIO_PORTQ::ptr() };
-        gpio_l.pur.write(|w| w.pue().bits(FV_ERRN|FBV_ERRN|FBI_ERRN|AV_ERRN|AI_ERRN|BTNN));
-        gpio_l.den.write(|w| w.den().bits(FV_ERRN|FBV_ERRN|FBI_ERRN|AV_ERRN|AI_ERRN|ERR_LATCHN|BTNN));
-        gpio_q.dir.write(|w| w.dir().bits(ERR_RESN));
-        gpio_q.den.write(|w| w.den().bits(ERR_RESN));
-        reset_error(); // error latch is an undefined state upon power-up; reset it
-
         // Set up PWMs
-        let gpio_f = unsafe { &*tm4c129x::GPIO_PORTF_AHB::ptr() };
-        gpio_f.dir.write(|w| w.dir().bits(HV_PWM|FV_PWM));
-        gpio_f.den.write(|w| w.den().bits(HV_PWM|FV_PWM));
-        gpio_f.afsel.write(|w| w.afsel().bits(HV_PWM|FV_PWM));
-        gpio_f.pctl.write(|w| unsafe { w.pmc0().bits(6).pmc2().bits(6) });
-
-        let gpio_g = unsafe { &*tm4c129x::GPIO_PORTG_AHB::ptr() };
-        gpio_g.dir.write(|w| w.dir().bits(FBV_PWM));
-        gpio_g.den.write(|w| w.den().bits(FBV_PWM));
-        gpio_g.afsel.write(|w| w.afsel().bits(FBV_PWM));
-        gpio_g.pctl.write(|w| unsafe { w.pmc0().bits(6) });
-
-        sysctl.rcgcpwm.modify(|_, w| w.r0().bit(true));
-        while !sysctl.prpwm.read().r0().bit() {}
-
-        let pwm0 = unsafe { &*tm4c129x::PWM0::ptr() };
-        // HV_PWM
-        pwm0._0_gena.write(|w| w.actload().zero().actcmpad().one());
-        pwm0._0_load.write(|w| w.load().bits(PWM_LOAD));
-        pwm0._0_cmpa.write(|w| w.compa().bits(0));
-        pwm0._0_ctl.write(|w| w.enable().bit(true));
-        // FV_PWM
-        pwm0._1_gena.write(|w| w.actload().zero().actcmpad().one());
-        pwm0._1_load.write(|w| w.load().bits(PWM_LOAD));
-        pwm0._1_cmpa.write(|w| w.compa().bits(0));
-        pwm0._1_ctl.write(|w| w.enable().bit(true));
-        // FBV_PWM
-        pwm0._2_gena.write(|w| w.actload().zero().actcmpad().one());
-        pwm0._2_load.write(|w| w.load().bits(PWM_LOAD));
-        pwm0._2_cmpa.write(|w| w.compa().bits(0));
-        pwm0._2_ctl.write(|w| w.enable().bit(true));
-        // Enable all at once
-        pwm0.enable.write(|w| {
-            w.pwm0en().bit(true)
-             .pwm2en().bit(true)
-             .pwm4en().bit(true)
+        let gpio_m = unsafe { &*tm4c129x::GPIO_PORTM::ptr() };
+        // Output
+        gpio_m.dir.write(|w| w.dir().bits(0xff));
+        // Enable
+        gpio_m.den.write(|w| w.den().bits(0xff));
+        // Alternate function
+        gpio_m.afsel.write(|w| w.afsel().bits(0xff));
+        // Function: Timer PWM
+        gpio_m.pctl.write(|w| unsafe {
+            w
+                // t2ccp0
+                .pmc0().bits(3)
+                // t2ccp1
+                .pmc1().bits(3)
+                // t3ccp0
+                .pmc2().bits(3)
+                // t3ccp1
+                .pmc3().bits(3)
+                // t4ccp0
+                .pmc4().bits(3)
+                // t4ccp1
+                .pmc5().bits(3)
+                // t5ccp0
+                .pmc6().bits(3)
+                // t5ccp1
+                .pmc7().bits(3)
         });
+
+        // Manual: 13.4.5 PWM Mode
+        macro_rules! setup_timer_pwm {
+            ($T: tt) => (
+                let timer = unsafe { &*tm4c129x::$T::ptr() };
+                timer.cfg.write(|w| unsafe { w.bits(4) });
+                timer.tamr.modify(|_, w| unsafe {
+                    w
+                        .taams().bit(true)
+                        .tacmr().bit(false)
+                        .tamr().bits(2)
+                });
+                timer.tbmr.modify(|_, w| unsafe {
+                    w
+                        .tbams().bit(true)
+                        .tbcmr().bit(false)
+                        .tbmr().bits(2)
+                });
+                timer.ctl.modify(|_, w| {
+                    w
+                        .tapwml().bit(false)
+                        .tbpwml().bit(false)
+                });
+                // no prescaler
+                // no interrupts
+                timer.tailr.write(|w| unsafe { w.bits(0xFFFF) });
+                timer.tbilr.write(|w| unsafe { w.bits(0xFFFF) });
+                timer.tamatchr.write(|w| unsafe { w.bits(0x8000) });
+                timer.tbmatchr.write(|w| unsafe { w.bits(0x8000) });
+                timer.ctl.modify(|_, w| {
+                    w
+                        .taen().bit(true)
+                        .tben().bit(true)
+                });
+            )
+        }
+        setup_timer_pwm!(TIMER2);
+        setup_timer_pwm!(TIMER3);
+        setup_timer_pwm!(TIMER4);
+        setup_timer_pwm!(TIMER5);
     });
 }
 

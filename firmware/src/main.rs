@@ -91,15 +91,14 @@ macro_rules! create_socket {
 #[entry]
 fn main() -> ! {
     board::init();
-    let button_pressed = board::get_button();
 
     let mut config = config::Config::new();
     eeprom::init();
-    if button_pressed {
+    /*if button_pressed {
         config.save();
     } else {
         config.load();
-    }
+    }*/
 
     println!(r#"
   _                         _
@@ -161,12 +160,12 @@ fn main() -> ! {
         (http::Request::new(), tcp_handle7),
     ];*/
 
-    board::set_hv_pwm(board::PWM_LOAD / 2);
+    /*board::set_hv_pwm(board::PWM_LOAD / 2);
     board::set_fv_pwm(board::PWM_LOAD / 2);
-    board::set_fbv_pwm(board::PWM_LOAD / 2);
+    board::set_fbv_pwm(board::PWM_LOAD / 2);*/
     board::start_adc();
 
-    let mut fast_blink_count = if button_pressed { 40 } else { 0 };
+    let mut fast_blink_count = 0;
     let mut next_blink = 0;
     let mut led_state = true;
     let mut latch_reset_time = None;
@@ -203,17 +202,6 @@ fn main() -> ! {
         match iface.poll(&mut sockets, Instant::from_millis(time as i64)) {
             Ok(_) => (),
             Err(e) => println!("poll error: {}", e)
-        }
-
-        if time > next_blink {
-            led_state = !led_state;
-            if fast_blink_count > 0 {
-                fast_blink_count -= 1;
-                next_blink = time + 100;
-            } else {
-                next_blink = time + 500;
-            }
-            board::set_led(led_state);
         }
 
         board::process_errors();
