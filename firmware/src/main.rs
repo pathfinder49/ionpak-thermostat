@@ -10,6 +10,7 @@ extern crate cortex_m_rt;
 extern crate tm4c129x;
 extern crate smoltcp;
 extern crate crc;
+extern crate embedded_hal;
 
 use core::cell::{Cell, RefCell};
 use core::fmt;

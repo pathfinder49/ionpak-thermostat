@@ -1,6 +1,8 @@
 use cortex_m;
 use tm4c129x;
 
+mod gpio;
+
 
 const LED1: u8 = 0x10; // PK4
 const LED2: u8 = 0x40; // PK6
