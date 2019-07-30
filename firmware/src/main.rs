@@ -45,12 +45,6 @@ mod board;
 mod eeprom;
 mod config;
 mod ethmac;
-mod pid;
-mod loop_anode;
-mod loop_cathode;
-mod electrometer;
-mod http;
-mod pages;
 
 static ADC_IRQ_COUNT: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
 
@@ -60,16 +54,6 @@ fn get_time_ms() -> u64 {
     });
     adc_irq_count*24/125
 }
-
-static LOOP_ANODE: Mutex<RefCell<loop_anode::Controller>> = Mutex::new(RefCell::new(
-    loop_anode::Controller::new()));
-
-static LOOP_CATHODE: Mutex<RefCell<loop_cathode::Controller>> = Mutex::new(RefCell::new(
-    loop_cathode::Controller::new()));
-
-static ELECTROMETER: Mutex<RefCell<electrometer::Electrometer>> = Mutex::new(RefCell::new(
-    electrometer::Electrometer::new()));
-
 
 pub struct UART0;
 
@@ -116,35 +100,6 @@ fn main() -> ! {
     } else {
         config.load();
     }
-
-    cortex_m::interrupt::free(|cs| {
-        let mut loop_anode = LOOP_ANODE.borrow(cs).borrow_mut();
-        let mut loop_cathode = LOOP_CATHODE.borrow(cs).borrow_mut();
-
-        // ZJ-10
-        let anode = 165.0;
-        let cathode_bias = 50.0;
-        let emission = 0.5e-3;
-
-        // ZJ-27
-        /*let anode = 225.0;
-        let cathode_bias = 25.0;
-        let emission = 1.0e-3;*/
-
-        // ZJ-12
-        /*let anode = 200.0;
-        let cathode_bias = 50.0;
-        let emission = 4.0e-3;*/
-
-        // G8130
-        /*let anode = 180.0;
-        let cathode_bias = 30.0;
-        let emission = 4.0e-3;*/
-
-        loop_anode.set_target(anode);
-        loop_cathode.set_emission_target(emission);
-        loop_cathode.set_bias_target(cathode_bias);
-    });
 
     println!(r#"
   _                         _
@@ -195,7 +150,7 @@ fn main() -> ! {
     create_socket!(sockets, tcp_rx_storage6, tcp_tx_storage6, tcp_handle6);
     create_socket!(sockets, tcp_rx_storage7, tcp_tx_storage7, tcp_handle7);
 
-    let mut sessions = [
+    /*let mut sessions = [
         (http::Request::new(), tcp_handle0),
         (http::Request::new(), tcp_handle1),
         (http::Request::new(), tcp_handle2),
@@ -204,8 +159,11 @@ fn main() -> ! {
         (http::Request::new(), tcp_handle5),
         (http::Request::new(), tcp_handle6),
         (http::Request::new(), tcp_handle7),
-    ];
+    ];*/
 
+    board::set_hv_pwm(board::PWM_LOAD / 2);
+    board::set_fv_pwm(board::PWM_LOAD / 2);
+    board::set_fbv_pwm(board::PWM_LOAD / 2);
     board::start_adc();
 
     let mut fast_blink_count = if button_pressed { 40 } else { 0 };
@@ -215,7 +173,7 @@ fn main() -> ! {
     loop {
         let time = get_time_ms();
 
-        for &mut(ref mut request, tcp_handle) in sessions.iter_mut() {
+        /*for &mut(ref mut request, tcp_handle) in sessions.iter_mut() {
             let socket = &mut *sockets.get::<TcpSocket>(tcp_handle);
             if !socket.is_open() {
                 socket.listen(80).unwrap()
@@ -241,7 +199,7 @@ fn main() -> ! {
                 request.reset();
                 socket.close();
             }
-        }
+        }*/
         match iface.poll(&mut sockets, Instant::from_millis(time as i64)) {
             Ok(_) => (),
             Err(e) => println!("poll error: {}", e)
@@ -268,11 +226,6 @@ fn main() -> ! {
                 Some(t) => if time > t {
                     latch_reset_time = None;
                     cortex_m::interrupt::free(|cs| {
-                        // reset PID loops as they have accumulated large errors
-                        // while the protection was active, which would cause
-                        // unnecessary overshoots.
-                        LOOP_ANODE.borrow(cs).borrow_mut().reset();
-                        LOOP_CATHODE.borrow(cs).borrow_mut().reset();
                         board::reset_error();
                     });
                     println!("Protection reset");
@@ -297,13 +250,6 @@ fn adc0_ss0() {
         let fd_sample  = adc0.ssfifo0.read().data().bits();
         let av_sample  = adc0.ssfifo0.read().data().bits();
         let fbv_sample = adc0.ssfifo0.read().data().bits();
-
-        let mut loop_anode = LOOP_ANODE.borrow(cs).borrow_mut();
-        let mut loop_cathode = LOOP_CATHODE.borrow(cs).borrow_mut();
-        let mut electrometer = ELECTROMETER.borrow(cs).borrow_mut();
-        loop_anode.adc_input(av_sample);
-        loop_cathode.adc_input(fbi_sample, fd_sample, fv_sample, fbv_sample);
-        electrometer.adc_input(ic_sample);
 
         let adc_irq_count = ADC_IRQ_COUNT.borrow(cs);
         adc_irq_count.set(adc_irq_count.get() + 1);
