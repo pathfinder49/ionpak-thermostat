@@ -13,6 +13,7 @@ cortex-m-rt = "0.6"
 crc = { version = "1.7", default-features = false }
 tm4c129x = { version = "0.8", features = ["rt"] }
 embedded-hal = { version = "0.2", features = ["unproven"] }
+nb = "0.1"
 
 [dependencies.smoltcp]
 git = "https://github.com/m-labs/smoltcp"

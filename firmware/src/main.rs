@@ -11,6 +11,7 @@ extern crate tm4c129x;
 extern crate smoltcp;
 extern crate crc;
 extern crate embedded_hal;
+extern crate nb;
 
 use core::cell::{Cell, RefCell};
 use core::fmt;
