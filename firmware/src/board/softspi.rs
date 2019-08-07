@@ -1,5 +1,7 @@
 use embedded_hal::spi::FullDuplex;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::blocking::spi::Transfer;
+use embedded_hal::blocking::delay::DelayUs;
 use nb::Error::WouldBlock;
 
 /// Bit-banged SPI
@@ -71,6 +73,13 @@ impl<SCK: OutputPin, MOSI: OutputPin, MISO: InputPin> SoftSpi<SCK, MOSI, MISO> {
             }
         }
     }
+
+    pub fn run<F: Fn()>(&mut self, delay: &'_ F) {
+        while self.state != State::Idle {
+            self.tick();
+            delay();
+        }
+    }
 }
 
 impl<SCK: OutputPin, MOSI: OutputPin, MISO: InputPin> FullDuplex<u8> for SoftSpi<SCK, MOSI, MISO> {
@@ -100,5 +109,36 @@ impl<SCK: OutputPin, MOSI: OutputPin, MISO: InputPin> FullDuplex<u8> for SoftSpi
             }
             _ => Err(WouldBlock)
         }
+    }
+}
+
+pub struct SyncSoftSpi<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> {
+    spi: SoftSpi<SCK, MOSI, MISO>,
+    delay: &'d D,
+}
+
+impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
+    fn retry<R, E, F>(&mut self, f: &F) -> Result<R, E>
+    where
+        F: Fn(&'_ mut SoftSpi<SCK, MOSI, MISO>) -> Result<R, nb::Error<E>>
+    {
+        loop {
+            match f(&mut self.spi) {
+                Ok(r) => return Ok(r),
+                Err(nb::Error::Other(e)) => return Err(e),
+                Err(WouldBlock) => self.spi.run(self.delay),
+            }
+        }
+    }
+}
+
+impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> Transfer<u8> for SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
+    type Error = ();
+    fn transfer<'w>(&mut self, words: &'w mut [u8]) -> Result<&'w [u8], Self::Error> {
+        for b in words.iter_mut() {
+            self.retry(&|spi| spi.send(*b))?;
+            *b = self.retry(&|spi| spi.read())?;
+        }
+        Ok(words)
     }
 }
