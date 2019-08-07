@@ -11,9 +11,9 @@ pub struct Delay {
 }
 
 impl Delay {
-    pub fn new() -> Self {
-        let mut cp = unsafe { tm4c129x::CorePeripherals::steal() };
-        let mut syst = cp.SYST;
+    /// unsafe: must only be used once to avoid concurrent use of systick
+    pub unsafe fn new() -> Self {
+        let mut syst = CorePeripherals::steal().SYST;
         // PIOSC
         syst.set_clock_source(SystClkSource::External);
         syst.disable_interrupt();

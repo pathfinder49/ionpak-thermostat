@@ -53,6 +53,7 @@ mod ethmac;
 
 static ADC_IRQ_COUNT: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
 
+// TODO: remove
 fn get_time_ms() -> u64 {
     let adc_irq_count = cortex_m::interrupt::free(|cs| {
         ADC_IRQ_COUNT.borrow(cs).get()
@@ -115,8 +116,8 @@ fn main() -> ! {
                | |
                |_|
 "#);
-    let mut delay = board::delay::Delay::new();
-    // SCK
+    let mut delay = unsafe { board::delay::Delay::new() };
+    // CSn
     let pb4 = board::gpio::PB4.into_output();
     // SCLK
     let pb5 = board::gpio::PB5.into_output();

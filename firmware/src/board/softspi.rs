@@ -137,6 +137,7 @@ impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: FnMut()> SyncSoftSp
 }
 
 impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: FnMut()> Transfer<u8> for SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
+    // TODO: proper type
     type Error = ();
     fn transfer<'w>(&mut self, words: &'w mut [u8]) -> Result<&'w [u8], Self::Error> {
         for b in words.iter_mut() {
