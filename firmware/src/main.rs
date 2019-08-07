@@ -15,6 +15,8 @@ extern crate nb;
 
 use core::cell::{Cell, RefCell};
 use core::fmt;
+use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_hal::blocking::delay::DelayUs;
 use cortex_m::interrupt::Mutex;
 use smoltcp::time::Instant;
 use smoltcp::wire::EthernetAddress;
@@ -44,6 +46,7 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
 
 #[macro_use]
 mod board;
+use board::gpio::Gpio;
 mod eeprom;
 mod config;
 mod ethmac;
@@ -112,6 +115,19 @@ fn main() -> ! {
                | |
                |_|
 "#);
+    let mut delay = board::delay::Delay::new();
+    // SCK
+    let pb4 = board::gpio::PB4.into_output();
+    // SCLK
+    let pb5 = board::gpio::PB5.into_output();
+    // MOSI
+    let pe4 = board::gpio::PE4.into_output();
+    // MISO
+    let pe5 = board::gpio::PE5.into_input();
+    let spi = board::softspi::SyncSoftSpi::new(
+        board::softspi::SoftSpi::new(pb4, pe4, pe5),
+        &mut || delay.delay_us(1u32)
+    );
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {

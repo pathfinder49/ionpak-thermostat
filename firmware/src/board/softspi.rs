@@ -74,7 +74,7 @@ impl<SCK: OutputPin, MOSI: OutputPin, MISO: InputPin> SoftSpi<SCK, MOSI, MISO> {
         }
     }
 
-    pub fn run<F: Fn()>(&mut self, delay: &'_ F) {
+    pub fn run<F: FnMut()>(&mut self, delay: &'_ mut F) {
         while self.state != State::Idle {
             self.tick();
             delay();
@@ -112,12 +112,16 @@ impl<SCK: OutputPin, MOSI: OutputPin, MISO: InputPin> FullDuplex<u8> for SoftSpi
     }
 }
 
-pub struct SyncSoftSpi<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> {
+pub struct SyncSoftSpi<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: FnMut()> {
     spi: SoftSpi<SCK, MOSI, MISO>,
-    delay: &'d D,
+    delay: &'d mut D,
 }
 
-impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
+impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: FnMut()> SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
+    pub fn new(spi: SoftSpi<SCK, MOSI, MISO>, delay: &'d mut D) -> Self {
+        SyncSoftSpi { spi, delay }
+    }
+
     fn retry<R, E, F>(&mut self, f: &F) -> Result<R, E>
     where
         F: Fn(&'_ mut SoftSpi<SCK, MOSI, MISO>) -> Result<R, nb::Error<E>>
@@ -132,7 +136,7 @@ impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> SyncSoftSpi<'
     }
 }
 
-impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: Fn()> Transfer<u8> for SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
+impl<'d, SCK: OutputPin, MOSI: OutputPin, MISO: InputPin, D: FnMut()> Transfer<u8> for SyncSoftSpi<'d, SCK, MOSI, MISO, D> {
     type Error = ();
     fn transfer<'w>(&mut self, words: &'w mut [u8]) -> Result<&'w [u8], Self::Error> {
         for b in words.iter_mut() {
