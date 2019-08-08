@@ -1,6 +1,7 @@
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::blocking::spi::Transfer;
 
+#[allow(unused)]
 #[repr(u8)]
 pub enum Register {
     Status = 0x00,

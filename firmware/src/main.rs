@@ -14,7 +14,7 @@ extern crate embedded_hal;
 extern crate nb;
 
 use core::cell::{Cell, RefCell};
-use core::fmt;
+use core::fmt::{self, Write};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::blocking::delay::DelayUs;
 use cortex_m::interrupt::Mutex;
@@ -51,16 +51,6 @@ mod eeprom;
 mod config;
 mod ethmac;
 mod ad7172;
-
-static ADC_IRQ_COUNT: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
-
-// TODO: remove
-fn get_time_ms() -> u64 {
-    let adc_irq_count = cortex_m::interrupt::free(|cs| {
-        ADC_IRQ_COUNT.borrow(cs).get()
-    });
-    adc_irq_count*24/125
-}
 
 pub struct UART0;
 
@@ -131,7 +121,7 @@ fn main() -> ! {
         board::softspi::SoftSpi::new(pb5, pe4, pe5),
         &mut delay_fn
     );
-    let adc = ad7172::Adc::new(spi, pb4);
+    let mut adc = ad7172::Adc::new(spi, pb4).unwrap();
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
@@ -170,98 +160,48 @@ fn main() -> ! {
     create_socket!(sockets, tcp_rx_storage5, tcp_tx_storage5, tcp_handle5);
     create_socket!(sockets, tcp_rx_storage6, tcp_tx_storage6, tcp_handle6);
     create_socket!(sockets, tcp_rx_storage7, tcp_tx_storage7, tcp_handle7);
+    let handles = [
+        tcp_handle0,
+        tcp_handle1,
+        tcp_handle2,
+        tcp_handle3,
+        tcp_handle4,
+        tcp_handle5,
+        tcp_handle6,
+        tcp_handle7,
+    ];
 
-    /*let mut sessions = [
-        (http::Request::new(), tcp_handle0),
-        (http::Request::new(), tcp_handle1),
-        (http::Request::new(), tcp_handle2),
-        (http::Request::new(), tcp_handle3),
-        (http::Request::new(), tcp_handle4),
-        (http::Request::new(), tcp_handle5),
-        (http::Request::new(), tcp_handle6),
-        (http::Request::new(), tcp_handle7),
-    ];*/
-
-    /*board::set_hv_pwm(board::PWM_LOAD / 2);
-    board::set_fv_pwm(board::PWM_LOAD / 2);
-    board::set_fbv_pwm(board::PWM_LOAD / 2);*/
-    board::start_adc();
-
-    let mut fast_blink_count = 0;
-    let mut next_blink = 0;
-    let mut led_state = true;
-    let mut latch_reset_time = None;
+    let mut time = 0i64;
+    let mut data = 0;
+    let mut socket_pending = [false; 8];
     loop {
-        let time = get_time_ms();
-
-        /*for &mut(ref mut request, tcp_handle) in sessions.iter_mut() {
+        adc.data_ready()
+            .map(|channel| {
+                adc.read_data()
+                    .map(|new_data| {
+                        data = new_data;
+                        if channel == 0 {
+                            for p in socket_pending.iter_mut() {
+                                *p = true;
+                            }
+                        }
+                    })
+            });
+        for (&tcp_handle, pending) in (handles.iter().zip(socket_pending.iter_mut())) {
             let socket = &mut *sockets.get::<TcpSocket>(tcp_handle);
             if !socket.is_open() {
-                socket.listen(80).unwrap()
+                socket.listen(23).unwrap()
             }
 
-            if socket.may_recv() {
-                match socket.recv(|data| (data.len(), request.input(data))).unwrap() {
-                    Ok(true) => {
-                        if socket.can_send() {
-                            pages::serve(socket, &request, &mut config, &LOOP_ANODE, &LOOP_CATHODE, &ELECTROMETER);
-                        }
-                        request.reset();
-                        socket.close();
-                    }
-                    Ok(false) => (),
-                    Err(err) => {
-                        println!("failed HTTP request: {}", err);
-                        request.reset();
-                        socket.close();
-                    }
-                }
-            } else if socket.may_send() {
-                request.reset();
-                socket.close();
+            if socket.may_send() && *pending {
+                let _ = writeln!(socket, "{}\r", data);
+                *pending = false;
             }
-        }*/
-        match iface.poll(&mut sockets, Instant::from_millis(time as i64)) {
+        }
+        match iface.poll(&mut sockets, Instant::from_millis(time)) {
             Ok(_) => (),
             Err(e) => println!("poll error: {}", e)
         }
-
-        board::process_errors();
-        if board::error_latched() {
-            match latch_reset_time {
-                None => {
-                    println!("Protection latched");
-                    latch_reset_time = Some(time + 5000);
-                }
-                Some(t) => if time > t {
-                    latch_reset_time = None;
-                    cortex_m::interrupt::free(|cs| {
-                        board::reset_error();
-                    });
-                    println!("Protection reset");
-                }
-            }
-        }
+        time += 1;
     }
-}
-
-interrupt!(ADC0SS0, adc0_ss0);
-fn adc0_ss0() {
-    cortex_m::interrupt::free(|cs| {
-        let adc0 = unsafe { &*tm4c129x::ADC0::ptr() };
-        if adc0.ostat.read().ov0().bit() {
-            panic!("ADC FIFO overflowed")
-        }
-        adc0.isc.write(|w| w.in0().bit(true));
-
-        let ic_sample  = adc0.ssfifo0.read().data().bits();
-        let fbi_sample = adc0.ssfifo0.read().data().bits();
-        let fv_sample  = adc0.ssfifo0.read().data().bits();
-        let fd_sample  = adc0.ssfifo0.read().data().bits();
-        let av_sample  = adc0.ssfifo0.read().data().bits();
-        let fbv_sample = adc0.ssfifo0.read().data().bits();
-
-        let adc_irq_count = ADC_IRQ_COUNT.borrow(cs);
-        adc_irq_count.set(adc_irq_count.get() + 1);
-    });
 }
