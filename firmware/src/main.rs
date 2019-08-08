@@ -50,6 +50,7 @@ use board::gpio::Gpio;
 mod eeprom;
 mod config;
 mod ethmac;
+mod ad7172;
 
 static ADC_IRQ_COUNT: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
 
@@ -125,10 +126,12 @@ fn main() -> ! {
     let pe4 = board::gpio::PE4.into_output();
     // MISO
     let pe5 = board::gpio::PE5.into_input();
+    let mut delay_fn = || delay.delay_us(1u32);
     let spi = board::softspi::SyncSoftSpi::new(
-        board::softspi::SoftSpi::new(pb4, pe4, pe5),
-        &mut || delay.delay_us(1u32)
+        board::softspi::SoftSpi::new(pb5, pe4, pe5),
+        &mut delay_fn
     );
+    let adc = ad7172::Adc::new(spi, pb4);
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
