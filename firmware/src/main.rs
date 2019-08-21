@@ -6,20 +6,17 @@ extern crate libm;
 extern crate cortex_m;
 #[macro_use]
 extern crate cortex_m_rt;
-#[macro_use(interrupt)]
 extern crate tm4c129x;
 extern crate smoltcp;
 extern crate crc;
 extern crate embedded_hal;
 extern crate nb;
 
-use core::cell::{Cell, RefCell};
 use core::fmt::{self, Write};
-use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::blocking::delay::DelayUs;
 use cortex_m::interrupt::Mutex;
 use smoltcp::time::Instant;
-use smoltcp::wire::EthernetAddress;
+use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
 use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder};
 use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer};
 
@@ -47,8 +44,6 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
 #[macro_use]
 mod board;
 use board::gpio::Gpio;
-mod eeprom;
-mod config;
 mod ethmac;
 mod ad7172;
 
@@ -89,14 +84,6 @@ macro_rules! create_socket {
 fn main() -> ! {
     board::init();
 
-    let mut config = config::Config::new();
-    eeprom::init();
-    /*if button_pressed {
-        config.save();
-    } else {
-        config.load();
-    }*/
-
     println!(r#"
   _                         _
  (_)                       | |
@@ -128,7 +115,7 @@ fn main() -> ! {
         println!("programmed MAC address is invalid, using default");
         hardware_addr = EthernetAddress([0x10, 0xE2, 0xD5, 0x00, 0x03, 0x00]);
     }
-    let mut ip_addrs = [config.ip];
+    let mut ip_addrs = [IpCidr::new(IpAddress::v4(192, 168, 69, 1), 24)];
     println!("MAC {} IP {}", hardware_addr, ip_addrs[0]);
     let mut neighbor_cache_storage = [None; 8];
     let neighbor_cache = NeighborCache::new(&mut neighbor_cache_storage[..]);
@@ -187,7 +174,7 @@ fn main() -> ! {
                         }
                     })
             });
-        for (&tcp_handle, pending) in (handles.iter().zip(socket_pending.iter_mut())) {
+        for (&tcp_handle, pending) in handles.iter().zip(socket_pending.iter_mut()) {
             let socket = &mut *sockets.get::<TcpSocket>(tcp_handle);
             if !socket.is_open() {
                 socket.listen(23).unwrap()

@@ -9,80 +9,9 @@ pub mod delay;
 const LED1: u8 = 0x10; // PK4
 const LED2: u8 = 0x40; // PK6
 
-const FD_ADC: u8 = 0x01;  // PE0
-const FV_ADC: u8 = 0x02;  // PE1
-const FBI_ADC: u8 = 0x04; // PE2
-const IC_ADC: u8 = 0x08;  // PE3
-const FBV_ADC: u8 = 0x20; // PD5
-const AV_ADC: u8 = 0x40;  // PD6
-
-const FV_ERRN: u8 = 0x01;    // PL0
-const FBV_ERRN: u8 = 0x02;   // PL1
-const FBI_ERRN: u8 = 0x04;   // PL2
-const AV_ERRN: u8 = 0x08;    // PL3
-const AI_ERRN: u8 = 0x10;    // PL4
-const ERR_LATCHN: u8 = 0x20; // PL5
-const BTNN: u8 = 0x80;       // PL7
-const ERR_RESN: u8 = 0x01;   // PQ0
 
 pub const PWM_LOAD: u16 = (/*pwmclk*/120_000_000u32 / /*freq*/100_000) as u16;
 const UART_DIV: u32 = (((/*sysclk*/120_000_000 * 8) / /*baud*/115200) + 1) / 2;
-
-
-pub const AV_ADC_GAIN: f32 = 6.792703150912105;
-pub const FV_ADC_GAIN: f32 = 501.83449105726623;
-pub const FBI_ADC_GAIN: f32 = 1333.3333333333333;
-pub const FBI_ADC_OFFSET: f32 = 96.0;
-pub const FD_ADC_GAIN: f32 = 3111.1111111111104;
-pub const FD_ADC_OFFSET: f32 = 96.0;
-pub const FBV_ADC_GAIN: f32 = 49.13796058269066;
-pub const FBV_PWM_GAIN: f32 = 0.07641071428571428;
-pub const IC_ADC_GAIN_LOW: f32 = 1333333333333.3333;
-pub const IC_ADC_GAIN_MED: f32 = 13201320132.0132;
-pub const IC_ADC_GAIN_HIGH: f32 = 133320001.3332;
-pub const IC_ADC_OFFSET: f32 = 96.0;
-
-pub const FBI_R223: f32 = 200.0;
-pub const FBI_R224: f32 = 39.0;
-pub const FBI_R225: f32 = 22000.0;
-
-
-pub fn reset_error() {
-    cortex_m::interrupt::free(|_cs| {
-        let gpio_q = unsafe { &*tm4c129x::GPIO_PORTQ::ptr() };
-        gpio_q.data.modify(|r, w| w.data().bits(r.data().bits() & !ERR_RESN));
-        gpio_q.data.modify(|r, w| w.data().bits(r.data().bits() | ERR_RESN));
-    });
-}
-
-pub fn error_latched() -> bool {
-    cortex_m::interrupt::free(|_cs| {
-        let gpio_l = unsafe { &*tm4c129x::GPIO_PORTL::ptr() };
-        gpio_l.data.read().bits() as u8 & ERR_LATCHN == 0
-    })
-}
-
-pub fn process_errors() {
-    let gpio_dat = cortex_m::interrupt::free(|_cs| {
-        let gpio_l = unsafe { &*tm4c129x::GPIO_PORTL::ptr() };
-        gpio_l.data.read().bits() as u8
-    });
-    if gpio_dat & FV_ERRN == 0 {
-        println!("Filament overvolt");
-    }
-    if gpio_dat & FBV_ERRN == 0 {
-        println!("Filament bias overvolt");
-    }
-    if gpio_dat & FBI_ERRN == 0 {
-        println!("Filament bias overcurrent");
-    }
-    if gpio_dat & AV_ERRN == 0 {
-        println!("Anode overvolt");
-    }
-    if gpio_dat & AI_ERRN == 0 {
-        println!("Anode overcurrent");
-    }
-}
 
 pub fn init() {
     cortex_m::interrupt::free(|_cs| {
@@ -214,51 +143,6 @@ pub fn init() {
         setup_timer_pwm!(TIMER3);
         setup_timer_pwm!(TIMER4);
         setup_timer_pwm!(TIMER5);
-    });
-}
-
-pub fn start_adc() {
-    cortex_m::interrupt::free(|_cs| {
-        let sysctl = unsafe { &*tm4c129x::SYSCTL::ptr() };
-
-        let gpio_d = unsafe { &*tm4c129x::GPIO_PORTD_AHB::ptr() };
-        let gpio_e = unsafe { &*tm4c129x::GPIO_PORTE_AHB::ptr() };
-        gpio_d.afsel.write(|w| w.afsel().bits(FBV_ADC|AV_ADC));
-        gpio_d.amsel.write(|w| w.amsel().bits(FBV_ADC|AV_ADC));
-        gpio_e.afsel.write(|w| w.afsel().bits(FD_ADC|FV_ADC|FBI_ADC|IC_ADC));
-        gpio_e.amsel.write(|w| w.amsel().bits(FD_ADC|FV_ADC|FBI_ADC|IC_ADC));
-
-        sysctl.rcgcadc.modify(|_, w| w.r0().bit(true));
-        while !sysctl.pradc.read().r0().bit() {}
-
-        let adc0 = unsafe { &*tm4c129x::ADC0::ptr() };
-        // VCO 480 / 15 = 32MHz ADC clock
-        adc0.cc.write(|w| w.cs().syspll().clkdiv().bits(15-1));
-        adc0.im.write(|w| w.mask0().bit(true));
-        adc0.emux.write(|w| w.em0().always());
-        adc0.ssmux0.write(|w| {
-            w.mux0().bits(0) // IC_ADC
-             .mux1().bits(1) // FBI_ADC
-             .mux2().bits(2) // FV_ADC
-             .mux3().bits(3) // FD_ADC
-             .mux4().bits(5) // AV_ADC
-             .mux5().bits(6) // FBV_ADC
-        });
-        adc0.ssctl0.write(|w| w.ie5().bit(true).end5().bit(true));
-        adc0.sstsh0.write(|w| {
-            w.tsh0()._4()
-             .tsh1()._4()
-             .tsh2()._4()
-             .tsh3()._4()
-             .tsh4()._4()
-             .tsh5()._4()
-        });
-        adc0.sac.write(|w| w.avg()._64x());
-        adc0.ctl.write(|w| w.vref().bit(true));
-        adc0.actss.write(|w| w.asen0().bit(true));
-
-        let mut cp = unsafe { tm4c129x::CorePeripherals::steal() };
-        cp.NVIC.enable(tm4c129x::Interrupt::ADC0SS0);
     });
 }
 
