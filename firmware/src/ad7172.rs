@@ -46,6 +46,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
     pub fn new(spi: SPI, mut nss: NSS) -> Result<Self, SPI::Error> {
         let _ = nss.set_high();
         let mut adc = Adc { spi, nss};
+        adc.reset()?;
 
         let mut buf = [0, 0, 0];
         adc.write_reg(Register::AdcMode, &mut buf)?;
@@ -90,16 +91,13 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(result)
     }
 
-    fn transfer<'w>(&mut self, words: &'w mut [u8]) -> Result<&'w [u8], SPI::Error> {
-        let _ = self.nss.set_low();
-        let result = self.spi.transfer(words);
-        let _ = self.nss.set_high();
-        result
-    }
-
     fn read_reg(&mut self, reg: Register, buffer: &'_ mut [u8]) -> Result<(), SPI::Error> {
         buffer[0] = 0x40 | (reg as u8);
         self.transfer(buffer)?;
+        use core::fmt::Write;
+        use cortex_m_semihosting::hio;
+        let mut stdout = hio::hstdout().unwrap();
+        writeln!(stdout, "ad rreg {}: {:?}", reg as u8, buffer);
         Ok(())
     }
 
@@ -107,5 +105,18 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         buffer[0] = reg as u8;
         self.transfer(buffer)?;
         Ok(())
+    }
+
+    pub fn reset(&mut self) -> Result<(), SPI::Error> {
+        let mut buf = [0xFFu8; 8];
+        self.transfer(&mut buf)?;
+        Ok(())
+    }
+
+    fn transfer<'w>(&mut self, words: &'w mut [u8]) -> Result<&'w [u8], SPI::Error> {
+        let _ = self.nss.set_low();
+        let result = self.spi.transfer(words);
+        let _ = self.nss.set_high();
+        result
     }
 }

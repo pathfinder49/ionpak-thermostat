@@ -4,7 +4,7 @@ use embedded_hal::blocking::spi::Transfer;
 use embedded_hal::blocking::delay::DelayUs;
 use nb::Error::WouldBlock;
 
-/// Bit-banged SPI
+/// Bit-banged Mode3 SPI
 pub struct SoftSpi<SCK, MOSI, MISO> {
     sck: SCK,
     mosi: MOSI,
