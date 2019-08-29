@@ -43,7 +43,8 @@ pub struct Adc<SPI: Transfer<u8>, NSS: OutputPin> {
 }
 
 impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
-    pub fn new(spi: SPI, nss: NSS) -> Result<Self, SPI::Error> {
+    pub fn new(spi: SPI, mut nss: NSS) -> Result<Self, SPI::Error> {
+        let _ = nss.set_high();
         let mut adc = Adc { spi, nss};
 
         let mut buf = [0, 0, 0];
