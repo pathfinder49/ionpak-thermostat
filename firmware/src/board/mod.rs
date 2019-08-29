@@ -34,9 +34,10 @@ pub fn init() {
         // Switch to PLL (sysclk=120MHz)
         sysctl.rsclkcfg.write(|w| unsafe { w.bits(0b1_0_0_1_0011_0000_0000000000_0000000011) });
 
-        // Bring up GPIO ports A, D, E, F, G, K, L, M, P, Q
+        // Bring up GPIO ports A, B, D, E, F, G, K, L, M, P, Q
         sysctl.rcgcgpio.modify(|_, w| {
             w.r0().bit(true)
+             .r1().bit(true)
              .r3().bit(true)
              .r4().bit(true)
              .r5().bit(true)
