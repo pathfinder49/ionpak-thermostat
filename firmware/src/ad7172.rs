@@ -2,6 +2,7 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::blocking::spi::Transfer;
 
 #[allow(unused)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Register {
     Status = 0x00,
@@ -86,13 +87,13 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
     }
 
     fn read_reg(&mut self, reg: Register, buffer: &'_ mut [u8]) -> Result<(), SPI::Error> {
-        buffer[0] = reg as u8;
+        buffer[0] = 0x40 | (reg as u8);
         self.transfer(buffer)?;
         Ok(())
     }
 
     fn write_reg(&mut self, reg: Register, buffer: &'_ mut [u8]) -> Result<(), SPI::Error> {
-        buffer[0] = 0x40 | (reg as u8);
+        buffer[0] = reg as u8;
         self.transfer(buffer)?;
         Ok(())
     }
