@@ -104,6 +104,14 @@ pub fn init() {
                 .pmc7().bits(3)
         });
 
+        // Timers
+        sysctl.rcgctimer.write(|w| w
+            .r2().set_bit()
+            .r3().set_bit()
+            .r4().set_bit()
+            .r5().set_bit()
+        );
+
         // Manual: 13.4.5 PWM Mode
         macro_rules! setup_timer_pwm {
             ($T: tt) => (
