@@ -34,6 +34,9 @@ pub enum Register {
     Gain3 = 0x3B,
 }
 
+/// AD7172-2 implementation
+///
+/// [Manual](https://www.analog.com/media/en/technical-documentation/data-sheets/AD7172-2.pdf)
 pub struct Adc<SPI: Transfer<u8>, NSS: OutputPin> {
     spi: SPI,
     nss: NSS,
@@ -56,16 +59,15 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
     /// Returns the channel the data is from
     pub fn data_ready(&mut self) -> Option<u8> {
         let mut buf = [0u8; 2];
-        match self.read_reg(Register::Status, &mut buf) {
-            Err(_) => None,
-            Ok(()) => {
+        self.read_reg(Register::Status, &mut buf)
+            .ok()
+            .and_then(|()| {
                 if buf[1] & 0x80 == 0 {
                     None
                 } else {
                     Some(buf[1] & 0x3)
                 }
-            }
-        }
+            })
     }
 
     /// Get data
