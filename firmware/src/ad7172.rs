@@ -56,6 +56,14 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(adc)
     }
 
+    /// `0x00DX` for AD7271-2
+    pub fn identify(&mut self) -> Option<u16> {
+        let mut buf = [0u8; 3];
+        self.read_reg(Register::Id, &mut buf)
+            .ok()
+            .map(|()| (u16::from(buf[1]) << 8) | u16::from(buf[2]))
+    }
+
     /// Returns the channel the data is from
     pub fn data_ready(&mut self) -> Option<u8> {
         let mut buf = [0u8; 2];
