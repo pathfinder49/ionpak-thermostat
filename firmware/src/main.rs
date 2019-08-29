@@ -115,7 +115,7 @@ fn main() -> ! {
         println!("programmed MAC address is invalid, using default");
         hardware_addr = EthernetAddress([0x10, 0xE2, 0xD5, 0x00, 0x03, 0x00]);
     }
-    let mut ip_addrs = [IpCidr::new(IpAddress::v4(192, 168, 69, 1), 24)];
+    let mut ip_addrs = [IpCidr::new(IpAddress::v4(192, 168, 1, 26), 24)];
     println!("MAC {} IP {}", hardware_addr, ip_addrs[0]);
     let mut neighbor_cache_storage = [None; 8];
     let neighbor_cache = NeighborCache::new(&mut neighbor_cache_storage[..]);
