@@ -105,13 +105,34 @@ pub fn init() {
                 .pmc7().bits(3)
         });
 
-        // Timers
+        // Enable timers
         sysctl.rcgctimer.write(|w| w
             .r2().set_bit()
             .r3().set_bit()
             .r4().set_bit()
             .r5().set_bit()
         );
+        // Reset timers
+        sysctl.srtimer.write(|w| w
+            .r2().set_bit()
+            .r3().set_bit()
+            .r4().set_bit()
+            .r5().set_bit()
+        );
+        sysctl.srtimer.write(|w| w
+            .r2().clear_bit()
+            .r3().clear_bit()
+            .r4().clear_bit()
+            .r5().clear_bit()
+        );
+        fn timers_ready(sysctl: &tm4c129x::sysctl::RegisterBlock) -> bool {
+            let prtimer = sysctl.prtimer.read();
+            prtimer.r2().bit() &&
+                prtimer.r3().bit() &&
+                prtimer.r4().bit() &&
+                prtimer.r5().bit()
+        }
+        while !timers_ready(sysctl) {}
 
         // Manual: 13.4.5 PWM Mode
         macro_rules! setup_timer_pwm {
