@@ -1,5 +1,5 @@
 use core::mem::transmute;
-use core::slice::from_raw_parts_mut;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
 pub trait Gpio where Self: Sized {
@@ -12,6 +12,20 @@ pub struct GpioOutput<PIN>(PIN);
 
 macro_rules! def_gpio {
     ($PORT: tt, $PIN: tt, $idx: expr) => (
+        impl $PIN {
+            fn data(&self) -> &u32 {
+                let gpio = unsafe { tm4c129x::$PORT::ptr() };
+                let data = unsafe { from_raw_parts(gpio as *const _ as *mut u32, 0x100) };
+                &data[(1 << $idx) as usize]
+            }
+
+            fn data_mut(&mut self) -> &mut u32 {
+                let gpio = unsafe { tm4c129x::$PORT::ptr() };
+                let data = unsafe { from_raw_parts_mut(gpio as *const _ as *mut u32, 0x100) };
+                &mut data[(1 << $idx) as usize]
+            }
+        }
+
         impl Gpio for $PIN {
             fn into_output(self) -> GpioOutput<Self> {
                 let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
@@ -30,27 +44,21 @@ macro_rules! def_gpio {
         impl InputPin for GpioInput<$PIN> {
             type Error = ();
             fn is_high(&self) -> Result<bool, Self::Error> {
-                let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                Ok(gpio.data.read().data().bits() & (1 << $idx) == (1 << $idx))
+                Ok(*self.0.data() != 0)
             }
             fn is_low(&self) -> Result<bool, Self::Error> {
-                let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                Ok(gpio.data.read().data().bits() & (1 << $idx) != (1 << $idx))
+                Ok(*self.0.data() == 0)
             }
         }
 
         impl OutputPin for GpioOutput<$PIN> {
             type Error = ();
             fn set_low(&mut self) -> Result<(), Self::Error> {
-                let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                let data = masked_data(unsafe { transmute(&gpio.data) }, (1 << $idx));
-                *data = 0;
+                *self.0.data_mut() = 0;
                 Ok(())
             }
             fn set_high(&mut self) -> Result<(), Self::Error> {
-                let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                let data = masked_data(unsafe { transmute(&gpio.data) }, (1 << $idx));
-                *data = 1 << $idx;
+                *self.0.data_mut() = 0xFF;
                 Ok(())
             }
         }
