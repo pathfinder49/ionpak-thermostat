@@ -84,9 +84,9 @@ macro_rules! create_socket {
 #[entry]
 fn main() -> ! {
     let mut stdout = hio::hstdout().unwrap();
-    writeln!(stdout, "ionpak boot");
+    writeln!(stdout, "ionpak boot").unwrap();
     board::init();
-    writeln!(stdout, "board initialized");
+    writeln!(stdout, "board initialized").unwrap();
 
     println!(r#"
   _                         _
@@ -120,7 +120,7 @@ fn main() -> ! {
             None =>
                 writeln!(stdout, "Cannot identify ADC!").unwrap(),
             Some(id) if id & 0xFFF0 == 0x00D0 => {
-                writeln!(stdout, "ADC id: {:04X}", id);
+                writeln!(stdout, "ADC id: {:04X}", id).unwrap();
                 break;
             }
             Some(id) =>
@@ -183,7 +183,7 @@ fn main() -> ! {
             .map(|channel| {
                 adc.read_data()
                     .map(|new_data| {
-                        writeln!(stdout, "adc data: {:?}", new_data);
+                        writeln!(stdout, "adc data: {:?}", new_data).unwrap();
                         data = new_data;
                         if channel == 0 {
                             for p in socket_pending.iter_mut() {

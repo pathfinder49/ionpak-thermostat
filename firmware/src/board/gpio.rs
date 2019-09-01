@@ -1,4 +1,3 @@
-use core::mem::transmute;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
@@ -14,13 +13,13 @@ macro_rules! def_gpio {
     ($PORT: tt, $PIN: tt, $idx: expr) => (
         impl $PIN {
             fn data(&self) -> &u32 {
-                let gpio = unsafe { tm4c129x::$PORT::ptr() };
+                let gpio = tm4c129x::$PORT::ptr();
                 let data = unsafe { from_raw_parts(gpio as *const _ as *mut u32, 0x100) };
                 &data[(1 << $idx) as usize]
             }
 
             fn data_mut(&mut self) -> &mut u32 {
-                let gpio = unsafe { tm4c129x::$PORT::ptr() };
+                let gpio = tm4c129x::$PORT::ptr();
                 let data = unsafe { from_raw_parts_mut(gpio as *const _ as *mut u32, 0x100) };
                 &mut data[(1 << $idx) as usize]
             }
@@ -73,9 +72,3 @@ pub struct PE4;
 def_gpio!(GPIO_PORTE_AHB, PE4, 4);
 pub struct PE5;
 def_gpio!(GPIO_PORTE_AHB, PE5, 5);
-
-/// Setting of GPIO pins is optimized by address masking
-fn masked_data<'a>(data: *mut u32, bits: u8) -> &'a mut u32 {
-    let data = unsafe { from_raw_parts_mut(data, 0x400) };
-    &mut data[usize::from(bits)]
-}

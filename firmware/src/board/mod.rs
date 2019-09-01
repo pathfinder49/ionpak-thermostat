@@ -6,11 +6,6 @@ pub mod softspi;
 pub mod delay;
 
 
-const LED1: u8 = 0x10; // PK4
-const LED2: u8 = 0x40; // PK6
-
-
-pub const PWM_LOAD: u16 = (/*pwmclk*/120_000_000u32 / /*freq*/100_000) as u16;
 const UART_DIV: u32 = (((/*sysclk*/120_000_000 * 8) / /*baud*/115200) + 1) / 2;
 
 pub fn init() {

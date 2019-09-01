@@ -1,7 +1,6 @@
 use embedded_hal::spi::FullDuplex;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use embedded_hal::blocking::spi::Transfer;
-use embedded_hal::blocking::delay::DelayUs;
 use nb::Error::WouldBlock;
 
 /// Bit-banged Mode3 SPI
