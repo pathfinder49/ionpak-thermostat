@@ -107,13 +107,26 @@ fn main() -> ! {
     let pe4 = board::gpio::PE4.into_output();
     // MISO
     let pe5 = board::gpio::PE5.into_input();
+    // max 2 MHz = 0.5 us
     let mut delay_fn = || delay.delay_us(1u32);
     let spi = board::softspi::SyncSoftSpi::new(
         board::softspi::SoftSpi::new(pb5, pe4, pe5),
         &mut delay_fn
     );
     let mut adc = ad7172::Adc::new(spi, pb4).unwrap();
-
+    loop {
+        let r = adc.identify();
+        match r {
+            None =>
+                writeln!(stdout, "Cannot identify ADC!").unwrap(),
+            Some(id) if id & 0xFFF0 == 0x00D0 => {
+                writeln!(stdout, "ADC id: {:04X}", id);
+                break;
+            }
+            Some(id) =>
+                writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
+        };
+    }
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
         println!("programmed MAC address is invalid, using default");
