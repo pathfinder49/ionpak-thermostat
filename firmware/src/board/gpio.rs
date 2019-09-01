@@ -62,7 +62,7 @@ def_gpio!(GPIO_PORTB_AHB, PB4, 4);
 pub struct PB5;
 def_gpio!(GPIO_PORTB_AHB, PB5, 5);
 pub struct PE4;
-def_gpio!(GPIO_PORTE_AHB, PE4, 5);
+def_gpio!(GPIO_PORTE_AHB, PE4, 4);
 pub struct PE5;
 def_gpio!(GPIO_PORTE_AHB, PE5, 5);
 
