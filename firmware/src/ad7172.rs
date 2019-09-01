@@ -94,10 +94,6 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
     fn read_reg(&mut self, reg: Register, buffer: &'_ mut [u8]) -> Result<(), SPI::Error> {
         buffer[0] = 0x40 | (reg as u8);
         self.transfer(buffer)?;
-        use core::fmt::Write;
-        use cortex_m_semihosting::hio;
-        let mut stdout = hio::hstdout().unwrap();
-        writeln!(stdout, "ad rreg {}: {:?}", reg as u8, buffer);
         Ok(())
     }
 
