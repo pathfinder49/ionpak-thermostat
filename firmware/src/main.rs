@@ -11,14 +11,15 @@ extern crate smoltcp;
 extern crate crc;
 extern crate embedded_hal;
 extern crate nb;
+extern crate cortex_m_semihosting;
 
 use core::fmt::{self, Write};
 use embedded_hal::blocking::delay::DelayUs;
-use cortex_m::interrupt::Mutex;
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
 use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder};
 use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer};
+use cortex_m_semihosting::hio;
 
 #[macro_export]
 macro_rules! print {
@@ -82,7 +83,10 @@ macro_rules! create_socket {
 
 #[entry]
 fn main() -> ! {
+    let mut stdout = hio::hstdout().unwrap();
+    writeln!(stdout, "ionpak boot");
     board::init();
+    writeln!(stdout, "board initialized");
 
     println!(r#"
   _                         _
@@ -166,6 +170,7 @@ fn main() -> ! {
             .map(|channel| {
                 adc.read_data()
                     .map(|new_data| {
+                        writeln!(stdout, "adc data: {:?}", new_data);
                         data = new_data;
                         if channel == 0 {
                             for p in socket_pending.iter_mut() {
