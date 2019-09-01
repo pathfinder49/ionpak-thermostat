@@ -49,6 +49,7 @@ pub fn init() {
              .r14().bit(true)
         });
         while !sysctl.prgpio.read().r0().bit() {}
+        while !sysctl.prgpio.read().r1().bit() {}
         while !sysctl.prgpio.read().r3().bit() {}
         while !sysctl.prgpio.read().r4().bit() {}
         while !sysctl.prgpio.read().r5().bit() {}
