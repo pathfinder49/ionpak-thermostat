@@ -29,14 +29,14 @@ macro_rules! def_gpio {
         impl Gpio for $PIN {
             fn into_output(self) -> GpioOutput<Self> {
                 let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                gpio.dir.modify(|_, w| w.dir().bits(1 << $idx));
-                gpio.den.modify(|_, w| w.den().bits(1 << $idx));
+                gpio.dir.modify(|r, w| w.dir().bits(r.dir().bits() | (1 << $idx)));
+                gpio.den.modify(|r, w| w.den().bits(r.den().bits() | (1 << $idx)));
                 GpioOutput(self)
             }
             fn into_input(self) -> GpioInput<Self> {
                 let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
                 gpio.dir.modify(|r, w| w.dir().bits(r.dir().bits() & !(1 << $idx)));
-                gpio.den.modify(|_, w| w.den().bits(1 << $idx));
+                gpio.den.modify(|r, w| w.den().bits(r.den().bits() | (1 << $idx)));
                 GpioInput(self)
             }
         }
