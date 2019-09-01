@@ -43,13 +43,13 @@ macro_rules! def_gpio {
             type Error = ();
             fn set_low(&mut self) -> Result<(), Self::Error> {
                 let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                let data = masked_data(unsafe { transmute(&gpio.data) }, $idx);
+                let data = masked_data(unsafe { transmute(&gpio.data) }, (1 << $idx));
                 *data = 0;
                 Ok(())
             }
             fn set_high(&mut self) -> Result<(), Self::Error> {
                 let gpio = unsafe { &*tm4c129x::$PORT::ptr() };
-                let data = masked_data(unsafe { transmute(&gpio.data) }, $idx);
+                let data = masked_data(unsafe { transmute(&gpio.data) }, (1 << $idx));
                 *data = 1 << $idx;
                 Ok(())
             }
@@ -68,6 +68,6 @@ def_gpio!(GPIO_PORTE_AHB, PE5, 5);
 
 /// Setting of GPIO pins is optimized by address masking
 fn masked_data<'a>(data: *mut u32, bits: u8) -> &'a mut u32 {
-    let data = unsafe { from_raw_parts_mut(data, 0x100) };
+    let data = unsafe { from_raw_parts_mut(data, 0x400) };
     &mut data[usize::from(bits)]
 }
