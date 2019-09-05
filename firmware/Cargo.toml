@@ -2,6 +2,7 @@
 name = "ionpak-firmware"
 version = "1.0.0"
 authors = ["whitequark <whitequark@whitequark.org>"]
+edition = "2018"
 
 [build-dependencies]
 walkdir = "1.0"

@@ -2,17 +2,7 @@
 #![no_std]
 #![no_main]
 
-extern crate libm;
-extern crate cortex_m;
-#[macro_use]
-extern crate cortex_m_rt;
-extern crate tm4c129x;
-extern crate smoltcp;
-extern crate crc;
-extern crate embedded_hal;
-extern crate nb;
-extern crate cortex_m_semihosting;
-
+use cortex_m_rt::entry;
 use core::fmt::{self, Write};
 use embedded_hal::blocking::delay::DelayUs;
 use smoltcp::time::Instant;
@@ -42,9 +32,8 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-#[macro_use]
 mod board;
-use board::gpio::Gpio;
+use self::board::gpio::Gpio;
 mod ethmac;
 mod ad7172;
 
