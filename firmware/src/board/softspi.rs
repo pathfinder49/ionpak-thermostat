@@ -54,10 +54,10 @@ impl<SCK: OutputPin, MOSI: OutputPin, MISO: InputPin> SoftSpi<SCK, MOSI, MISO> {
             }
             State::Transfer { clock_phase: true,
                               mask, output, mut input } => {
-                let _ = self.sck.set_high();
                 if self.miso.is_high().unwrap_or(false) {
                     input |= mask;
                 }
+                let _ = self.sck.set_high();
 
                 if mask != 1 {
                     self.state = State::Transfer {
