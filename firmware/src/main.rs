@@ -106,13 +106,28 @@ fn main() -> ! {
     loop {
         let r = adc.identify();
         match r {
-            None =>
-                writeln!(stdout, "Cannot identify ADC!").unwrap(),
-            Some(id) if id & 0xFFF0 == 0x00D0 => {
+            Err(e) =>
+                writeln!(stdout, "Cannot identify ADC: {:?}", e).unwrap(),
+            Ok(id) if id & 0xFFF0 == 0x00D0 => {
                 writeln!(stdout, "ADC id: {:04X}", id).unwrap();
                 break;
             }
-            Some(id) =>
+            Ok(id) =>
+                writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
+        };
+    }
+    writeln!(stdout, "AD7172: setting checksum mode to XOR").unwrap();
+    adc.set_checksum_mode(ad7172::ChecksumMode::Xor).unwrap();
+    loop {
+        let r = adc.identify();
+        match r {
+            Err(e) =>
+                writeln!(stdout, "Cannot identify ADC: {:?}", e).unwrap(),
+            Ok(id) if id & 0xFFF0 == 0x00D0 => {
+                writeln!(stdout, "ADC id: {:04X}", id).unwrap();
+                break;
+            }
+            Ok(id) =>
                 writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
         };
     }
@@ -165,21 +180,27 @@ fn main() -> ! {
     ];
 
     let mut time = 0i64;
-    let mut data = 0;
+    let mut data = None;
+    // if a socket has sent the latest data
     let mut socket_pending = [false; 8];
     loop {
         adc.data_ready()
-            .map(|channel| {
-                adc.read_data()
-                    .map(|new_data| {
-                        writeln!(stdout, "adc data: {:?}", new_data).unwrap();
-                        data = new_data;
-                        if channel == 0 {
-                            for p in socket_pending.iter_mut() {
-                                *p = true;
-                            }
+            .and_then(|channel|
+                channel.map(|channel|
+                    adc.read_data().map(|new_data| {
+                        data = Some(Ok((channel, new_data)));
+                        for p in socket_pending.iter_mut() {
+                            *p = true;
                         }
                     })
+                ).unwrap_or(Ok(()))
+            )
+            .map_err(|e| {
+                data = Some(Err(e));
+                for p in socket_pending.iter_mut() {
+                    *p = true;
+                }
+
             });
         for (&tcp_handle, pending) in handles.iter().zip(socket_pending.iter_mut()) {
             let socket = &mut *sockets.get::<TcpSocket>(tcp_handle);
@@ -188,7 +209,18 @@ fn main() -> ! {
             }
 
             if socket.may_send() && *pending {
-                let _ = writeln!(socket, "{}\r", data);
+                match &data {
+                    Some(Ok((channel, input))) => {
+                        let _ = writeln!(socket, "channel={} input={}\r", channel, input);
+                    }
+                    Some(Err(ad7172::AdcError::ChecksumMismatch(Some(expected), Some(input)))) => {
+                        let _ = writeln!(socket, "checksum_expected={:02X} checksum_input={:02X}\r", expected, input);
+                    }
+                    Some(Err(e)) => {
+                        let _ = writeln!(socket, "adc_error={:?}\r", e);
+                    }
+                    None => {}
+                }
                 *pending = false;
             }
         }
