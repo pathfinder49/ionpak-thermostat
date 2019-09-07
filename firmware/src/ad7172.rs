@@ -132,9 +132,8 @@ impl<SPI> From<SPI> for AdcError<SPI> {
 #[repr(u8)]
 pub enum ChecksumMode {
     Off = 0b00,
+    /// Seems much less reliable than `Crc`
     Xor = 0b01,
-    /// Not implemented
-    #[allow(unused)]
     Crc = 0b10,
 }
 
@@ -152,7 +151,15 @@ impl Checksum {
             ChecksumMode::Off => {},
             ChecksumMode::Xor => self.state ^= input,
             ChecksumMode::Crc => {
-                // TODO
+                for i in 0..8 {
+                    let input_mask = 0x80 >> i;
+                    self.state = (self.state << 1) ^
+                        if ((self.state & 0x80) != 0) != ((input & input_mask) != 0) {
+                            0x07 /* x8 + x2 + x + 1 */
+                        } else {
+                            0
+                        };
+                }
             }
         }
     }
@@ -247,17 +254,17 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
 
     fn write_reg<R: Register>(&mut self, reg: &R, reg_data: &mut R::Data) -> Result<(), AdcError<SPI::Error>> {
         let address = reg.address();
-        let checksum_out = match self.checksum_mode {
-            ChecksumMode::Off => None,
-            ChecksumMode::Xor => {
-                let mut xor = address;
-                for b in reg_data.as_mut() {
-                    xor ^= *b;
-                }
-                Some(xor)
-            }
-            ChecksumMode::Crc => panic!("Not implemented"),
-        };
+        let mut checksum = Checksum::new(match self.checksum_mode {
+            ChecksumMode::Off => ChecksumMode::Off,
+            // write checksums are always crc
+            ChecksumMode::Xor => ChecksumMode::Crc,
+            ChecksumMode::Crc => ChecksumMode::Crc,
+        });
+        checksum.feed(address);
+        for &mut b in reg_data.as_mut() {
+            checksum.feed(b);
+        }
+        let checksum_out = checksum.result();
         self.transfer(address, reg_data.as_mut(), checksum_out)?;
         Ok(())
     }

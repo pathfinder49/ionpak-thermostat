@@ -116,8 +116,8 @@ fn main() -> ! {
                 writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
         };
     }
-    writeln!(stdout, "AD7172: setting checksum mode to XOR").unwrap();
-    adc.set_checksum_mode(ad7172::ChecksumMode::Xor).unwrap();
+    writeln!(stdout, "AD7172: setting checksum mode").unwrap();
+    adc.set_checksum_mode(ad7172::ChecksumMode::Crc).unwrap();
     loop {
         let r = adc.identify();
         match r {
