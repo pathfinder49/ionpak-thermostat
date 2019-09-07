@@ -97,7 +97,8 @@ fn main() -> ! {
     // MISO
     let pe5 = board::gpio::PE5.into_input();
     // max 2 MHz = 0.5 us
-    let mut delay_fn = || delay.delay_us(1u32);
+    // let mut delay_fn = || delay.delay_us(1u32);
+    let mut delay_fn = || for _ in 0..10 { cortex_m::asm::nop(); };
     let spi = board::softspi::SyncSoftSpi::new(
         board::softspi::SoftSpi::new(pb5, pe4, pe5),
         &mut delay_fn
