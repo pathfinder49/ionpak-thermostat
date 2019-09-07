@@ -2,9 +2,9 @@
 #![no_std]
 #![no_main]
 
-use cortex_m_rt::entry;
+use cortex_m_rt::{entry, exception};
 use core::fmt::{self, Write};
-use embedded_hal::blocking::delay::DelayUs;
+use cortex_m::peripheral::{SYST, syst::SystClkSource};
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
 use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder};
@@ -76,6 +76,7 @@ fn main() -> ! {
     writeln!(stdout, "ionpak boot").unwrap();
     board::init();
     writeln!(stdout, "board initialized").unwrap();
+    init_systick();
 
     println!(r#"
   _                         _
@@ -87,7 +88,6 @@ fn main() -> ! {
                | |
                |_|
 "#);
-    let mut delay = unsafe { board::delay::Delay::new() };
     // CSn
     let pb4 = board::gpio::PB4.into_output();
     // SCLK
@@ -97,7 +97,6 @@ fn main() -> ! {
     // MISO
     let pe5 = board::gpio::PE5.into_input();
     // max 2 MHz = 0.5 us
-    // let mut delay_fn = || delay.delay_us(1u32);
     let mut delay_fn = || for _ in 0..10 { cortex_m::asm::nop(); };
     let spi = board::softspi::SyncSoftSpi::new(
         board::softspi::SoftSpi::new(pb5, pe4, pe5),
@@ -189,7 +188,8 @@ fn main() -> ! {
             .and_then(|channel|
                 channel.map(|channel|
                     adc.read_data().map(|new_data| {
-                        data = Some(Ok((channel, new_data)));
+                        let now = get_time();
+                        data = Some((now, Ok((channel, new_data))));
                         for p in socket_pending.iter_mut() {
                             *p = true;
                         }
@@ -197,7 +197,8 @@ fn main() -> ! {
                 ).unwrap_or(Ok(()))
             )
             .map_err(|e| {
-                data = Some(Err(e));
+                let now = get_time();
+                data = Some((now, Err(e)));
                 for p in socket_pending.iter_mut() {
                     *p = true;
                 }
@@ -211,14 +212,14 @@ fn main() -> ! {
 
             if socket.may_send() && *pending {
                 match &data {
-                    Some(Ok((channel, input))) => {
-                        let _ = writeln!(socket, "channel={} input={}\r", channel, input);
+                    Some((time, Ok((channel, input)))) => {
+                        let _ = writeln!(socket, "t={} channel={} input={}\r", time, channel, input);
                     }
-                    Some(Err(ad7172::AdcError::ChecksumMismatch(Some(expected), Some(input)))) => {
-                        let _ = writeln!(socket, "checksum_expected={:02X} checksum_input={:02X}\r", expected, input);
+                    Some((time, Err(ad7172::AdcError::ChecksumMismatch(Some(expected), Some(input))))) => {
+                        let _ = writeln!(socket, "t={} checksum_expected={:02X} checksum_input={:02X}\r", time, expected, input);
                     }
-                    Some(Err(e)) => {
-                        let _ = writeln!(socket, "adc_error={:?}\r", e);
+                    Some((time, Err(e))) => {
+                        let _ = writeln!(socket, "t={} adc_error={:?}\r", time, e);
                     }
                     None => {}
                 }
@@ -231,4 +232,26 @@ fn main() -> ! {
         }
         time += 1;
     }
+}
+
+const SYSTICK_RATE: u32 = 1000;
+static mut TIME: u32 = 0;
+
+pub fn get_time() -> u32 {
+    unsafe { TIME }
+}
+
+#[exception]
+fn SysTick() {
+    unsafe { TIME += 1000 / SYSTICK_RATE; }
+}
+
+fn init_systick() {
+    #[allow(mutable_transmutes)]
+    let syst: &mut SYST = unsafe { core::mem::transmute(&*SYST::ptr()) };
+    syst.set_clock_source(SystClkSource::Core);
+    syst.set_reload(100 * SYST::get_ticks_per_10ms() / SYSTICK_RATE);
+    syst.clear_current();
+    syst.enable_interrupt();
+    syst.enable_counter();
 }

@@ -3,7 +3,6 @@ use tm4c129x;
 
 pub mod gpio;
 pub mod softspi;
-pub mod delay;
 
 
 const UART_DIV: u32 = (((/*sysclk*/120_000_000 * 8) / /*baud*/115200) + 1) / 2;
