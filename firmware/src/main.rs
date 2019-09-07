@@ -2,9 +2,8 @@
 #![no_std]
 #![no_main]
 
-use cortex_m_rt::{entry, exception};
+use cortex_m_rt::entry;
 use core::fmt::{self, Write};
-use cortex_m::peripheral::{SYST, syst::SystClkSource};
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
 use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder};
@@ -33,7 +32,7 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
 }
 
 mod board;
-use self::board::gpio::Gpio;
+use self::board::{gpio::Gpio, systick::get_time};
 mod ethmac;
 mod ad7172;
 
@@ -76,7 +75,6 @@ fn main() -> ! {
     writeln!(stdout, "ionpak boot").unwrap();
     board::init();
     writeln!(stdout, "board initialized").unwrap();
-    init_systick();
 
     println!(r#"
   _                         _
@@ -179,7 +177,6 @@ fn main() -> ! {
         tcp_handle7,
     ];
 
-    let mut time = 0i64;
     let mut data = None;
     // if a socket has sent the latest data
     let mut socket_pending = [false; 8];
@@ -226,32 +223,9 @@ fn main() -> ! {
                 *pending = false;
             }
         }
-        match iface.poll(&mut sockets, Instant::from_millis(time)) {
+        match iface.poll(&mut sockets, Instant::from_millis(get_time() as i64)) {
             Ok(_) => (),
             Err(e) => println!("poll error: {}", e)
         }
-        time += 1;
     }
-}
-
-const SYSTICK_RATE: u32 = 1000;
-static mut TIME: u32 = 0;
-
-pub fn get_time() -> u32 {
-    unsafe { TIME }
-}
-
-#[exception]
-fn SysTick() {
-    unsafe { TIME += 1000 / SYSTICK_RATE; }
-}
-
-fn init_systick() {
-    #[allow(mutable_transmutes)]
-    let syst: &mut SYST = unsafe { core::mem::transmute(&*SYST::ptr()) };
-    syst.set_clock_source(SystClkSource::Core);
-    syst.set_reload(100 * SYST::get_ticks_per_10ms() / SYSTICK_RATE);
-    syst.clear_current();
-    syst.enable_interrupt();
-    syst.enable_counter();
 }

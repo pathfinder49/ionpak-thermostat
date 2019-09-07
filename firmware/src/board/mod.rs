@@ -3,6 +3,7 @@ use tm4c129x;
 
 pub mod gpio;
 pub mod softspi;
+pub mod systick;
 
 
 const UART_DIV: u32 = (((/*sysclk*/120_000_000 * 8) / /*baud*/115200) + 1) / 2;
@@ -168,6 +169,8 @@ pub fn init() {
         setup_timer_pwm!(TIMER3);
         setup_timer_pwm!(TIMER4);
         setup_timer_pwm!(TIMER5);
+
+        systick::init();
     });
 }
 
