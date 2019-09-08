@@ -7,7 +7,7 @@ use bare_metal::CriticalSection;
 static mut TIME: Mutex<RefCell<u64>> = Mutex::new(RefCell::new(0));
 /// In HZ
 const RATE: u32 = 10;
-/// Period between to interrupts in ns
+/// Period between two interrupts in ns
 const INTERVAL: u64 = 1_000_000 / RATE as u64;
 
 fn syst() -> &'static mut SYST {

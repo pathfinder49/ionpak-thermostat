@@ -177,6 +177,7 @@ fn main() -> ! {
         tcp_handle7,
     ];
 
+    let mut read_times = [0, 0];
     let mut data = None;
     // if a socket has sent the latest data
     let mut socket_pending = [false; 8];
@@ -186,6 +187,8 @@ fn main() -> ! {
                 channel.map(|channel|
                     adc.read_data().map(|new_data| {
                         let now = get_time();
+                        read_times[0] = read_times[1];
+                        read_times[1] = now;
                         data = Some((now, Ok((channel, new_data))));
                         for p in socket_pending.iter_mut() {
                             *p = true;
@@ -209,7 +212,8 @@ fn main() -> ! {
             if socket.may_send() && *pending {
                 match &data {
                     Some((time, Ok((channel, input)))) => {
-                        let _ = writeln!(socket, "t={} channel={} input={}\r", time, channel, input);
+                        let interval = read_times[1] - read_times[0];
+                        let _ = writeln!(socket, "t={}-{} channel={} input={}\r", time, interval, channel, input);
                     }
                     Some((time, Err(ad7172::AdcError::ChecksumMismatch(Some(expected), Some(input))))) => {
                         let _ = writeln!(socket, "t={} checksum_expected={:02X} checksum_input={:02X}\r", time, expected, input);
