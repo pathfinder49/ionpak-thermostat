@@ -13,7 +13,7 @@ trait RegisterData {
 }
 
 macro_rules! def_reg {
-    ($Reg: ident, $reg: ident, $addr: expr, $size: expr) => (
+    ($Reg: ident, $reg: ident, $addr: expr, $size: expr) => {
         struct $Reg;
         impl Register for $Reg {
             type Data = $reg::Data;
@@ -32,7 +32,27 @@ macro_rules! def_reg {
                 }
             }
         }
-    )
+    };
+    ($Reg: ident, $index: ty, $reg: ident, $addr: expr, $size: expr) => {
+        struct $Reg { pub index: $index, }
+        impl Register for $Reg {
+            type Data = $reg::Data;
+            fn address(&self) -> u8 {
+                $addr + (self.index as u8)
+            }
+        }
+        mod $reg {
+            pub struct Data(pub [u8; $size]);
+            impl super::RegisterData for Data {
+                fn empty() -> Self {
+                    Data([0; $size])
+                }
+                fn as_mut(&mut self) -> &mut [u8] {
+                    &mut self.0
+                }
+            }
+        }
+    }
 }
 
 def_reg!(Status, status, 0x00, 1);
@@ -83,6 +103,21 @@ impl id::Data {
     }
 }
 
+def_reg!(Channel, u8, channel, 0x10, 2);
+impl channel::Data {
+    fn enabled(&self) -> bool {
+        self.0[0].get_bit(7)
+    }
+
+    fn set_enabled(&mut self, value: bool) {
+        self.0[0].set_bit(7, value);
+    }
+}
+
+def_reg!(SetupCon, u8, setup_con, 0x20, 2);
+
+def_reg!(FiltCon, u8, filt_con, 0x80, 2);
+
 // #[allow(unused)]
 // #[derive(Clone, Copy)]
 // #[repr(u8)]
@@ -115,6 +150,21 @@ impl id::Data {
 //     Gain2 = 0x3A,
 //     Gain3 = 0x3B,
 // }
+
+#[repr(u8)]
+pub enum Input {
+    Ain0 = 0,
+    Ain1 = 1,
+    Ain2 = 2,
+    Ain3 = 3,
+    Ain4 = 4,
+    TemperaturePos = 17,
+    TemperatureNeg = 18,
+    AnalogSupplyPos = 19,
+    AnalogSupplyNeg = 20,
+    RefPos = 21,
+    RefNeg = 22,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AdcError<SPI> {
