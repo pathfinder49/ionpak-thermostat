@@ -181,7 +181,7 @@ fn main() -> ! {
     // if a socket has sent the latest data
     let mut socket_pending = [false; 8];
     loop {
-        adc.data_ready()
+        let _ = adc.data_ready()
             .and_then(|channel|
                 channel.map(|channel|
                     adc.read_data().map(|new_data| {
@@ -199,7 +199,6 @@ fn main() -> ! {
                 for p in socket_pending.iter_mut() {
                     *p = true;
                 }
-
             });
         for (&tcp_handle, pending) in handles.iter().zip(socket_pending.iter_mut()) {
             let socket = &mut *sockets.get::<TcpSocket>(tcp_handle);
@@ -223,7 +222,7 @@ fn main() -> ! {
                 *pending = false;
             }
         }
-        match iface.poll(&mut sockets, Instant::from_millis(get_time() as i64)) {
+        match iface.poll(&mut sockets, Instant::from_millis((get_time() / 1000) as i64)) {
             Ok(_) => (),
             Err(e) => println!("poll error: {}", e)
         }
