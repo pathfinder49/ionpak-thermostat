@@ -55,36 +55,77 @@ macro_rules! def_reg {
     }
 }
 
+macro_rules! reg_bit {
+    ($getter: ident, $byte: expr, $bit: expr, $doc: expr) => {
+        #[doc = $doc]
+        pub fn $getter(&self) -> bool {
+            self.0[$byte].get_bit($bit)
+        }
+    };
+    ($getter: ident, $setter: ident, $byte: expr, $bit: expr, $doc: expr) => {
+        #[doc = $doc]
+        pub fn $getter(&self) -> bool {
+            self.0[$byte].get_bit($bit)
+        }
+        #[doc = $doc]
+        pub fn $setter(&mut self, value: bool) {
+            self.0[$byte].set_bit($bit, value);
+        }
+    };
+}
+
+macro_rules! reg_bits {
+    ($getter: ident, $byte: expr, $bits: expr, $doc: expr) => {
+        #[doc = $doc]
+        pub fn $getter(&self) -> u8 {
+            self.0[$byte].get_bits($bits)
+        }
+    };
+    ($getter: ident, $setter: ident, $byte: expr, $bits: expr, $doc: expr) => {
+        #[doc = $doc]
+        pub fn $getter(&self) -> u8 {
+            self.0[$byte].get_bits($bits)
+        }
+        #[doc = $doc]
+        pub fn $setter(&mut self, value: u8) {
+            self.0[$byte].set_bits($bits, value);
+        }
+    };
+    ($getter: ident, $byte: expr, $bits: expr, $ty: ty, $doc: expr) => {
+        #[doc = $doc]
+        pub fn $getter(&self) -> $ty {
+            self.0[$byte].get_bits($bits) as $ty
+        }
+    };
+    ($getter: ident, $setter: ident, $byte: expr, $bits: expr, $ty: ty, $doc: expr) => {
+        #[doc = $doc]
+        pub fn $getter(&self) -> $ty {
+            self.0[$byte].get_bits($bits).into()
+        }
+        #[doc = $doc]
+        pub fn $setter(&mut self, value: $ty) {
+            self.0[$byte].set_bits($bits, value as u8);
+        }
+    };
+}
+
 def_reg!(Status, status, 0x00, 1);
 impl status::Data {
     /// Is there new data to read?
     pub fn ready(&self) -> bool {
-        ! self.0[0].get_bit(7)
+        ! self.not_ready()
     }
 
-    /// Channel for which data is ready
-    pub fn channel(&self) -> u8 {
-        self.0[0].get_bits(0..=1)
-    }
-
-    pub fn adc_error(&self) -> bool {
-        self.0[0].get_bit(6)
-    }
-
-    pub fn crc_error(&self) -> bool {
-        self.0[0].get_bit(5)
-    }
-
-    pub fn reg_error(&self) -> bool {
-        self.0[0].get_bit(4)
-    }
+    reg_bit!(not_ready, 0, 7, "No data ready indicator");
+    reg_bits!(channel, 0, 0..=1, "Channel for which data is ready");
+    reg_bit!(adc_error, 0, 6, "ADC error");
+    reg_bit!(crc_error, 0, 5, "SPI CRC error");
+    reg_bit!(reg_error, 0,4, "Register error");
 }
 
 def_reg!(IfMode, if_mode, 0x02, 2);
 impl if_mode::Data {
-    pub fn set_crc(&mut self, mode: ChecksumMode) {
-        self.0[1].set_bits(2..=3, mode as u8);
-    }
+    reg_bits!(crc, set_crc, 1, 2..=3, ChecksumMode, "SPI checksum mode");
 }
 
 def_reg!(Data, data, 0x04, 3);
@@ -105,48 +146,55 @@ impl id::Data {
 
 def_reg!(Channel, u8, channel, 0x10, 2);
 impl channel::Data {
-    pub fn enabled(&self) -> bool {
-        self.0[0].get_bit(7)
-    }
+    reg_bit!(enabled, set_enabled, 0, 7, "Channel enabled");
+    reg_bits!(setup, set_setup, 0, 4..=5, "Setup number");
 
-    pub fn set_enabled(&mut self, value: bool) {
-        self.0[0].set_bit(7, value);
+    /// Which input is connected to positive input of this channel
+    pub fn a_in_pos(&self) -> Input {
+        ((self.0[0].get_bits(0..=1) << 3) |
+         self.0[1].get_bits(5..=7)).into()
     }
+    /// Set which input is connected to positive input of this channel
+    pub fn set_a_in_pos(&mut self, value: Input) {
+        let value = value as u8;
+        self.0[0].set_bits(0..=1, value >> 3);
+        self.0[1].set_bits(5..=7, value & 0x7);
+    }
+    reg_bits!(a_in_neg, set_a_in_neg, 1, 0..=4, Input,
+              "Which input is connected to negative input of this channel");
+
+    // const PROPS: &'static [Property<Self>] = &[
+    //     Property::named("enable")
+    //         .readable(&|self_: &Self| self_.enabled().into())
+    //         .writebale(&|self_: &mut Self, value| self_.set_enabled(value != 0)),
+    //     Property::named("setup")
+    //         .readable(&|self_: &Self| self_.0[0].get_bits(4..=5).into())
+    //         .writeable(&|self_: &mut Self, value| {
+    //             self_.0[0].set_bits(4..=5, value as u8);
+    //         }),
+    // ];
+
+    // pub fn props() -> &'static [Property<Self>] {
+    //     Self::PROPS
+    // }
 }
 
 def_reg!(SetupCon, u8, setup_con, 0x20, 2);
+impl setup_con::Data {
+    reg_bit!(bi_unipolar, set_bi_unipolar, 0, 6, "Unipolar (`false`) or bipolar (`true`) coded output");
+    reg_bit!(refbuf_pos, set_refbuf_pos, 0, 5, "Enable REF+ input buffer");
+    reg_bit!(refbuf_neg, set_refbuf_neg, 0, 5, "Enable REF- input buffer");
+    reg_bit!(ainbuf_pos, set_ainbuf_pos, 0, 3, "Enable AIN+ input buffer");
+    reg_bit!(ainbuf_neg, set_ainbuf_neg, 0, 2, "Enable AIN- input buffer");
+    reg_bit!(burnout_en, 1, 7, "enables a 10 µA current source on the positive analog input selected and a 10 µA current sink on the negative analog input selected");
+    reg_bits!(ref_sel, set_ref_sel, 1, 4..=5, RefSource, "Select reference source for conversion");
+}
 
 def_reg!(FiltCon, u8, filt_con, 0x80, 2);
-
-// #[allow(unused)]
-// #[derive(Clone, Copy)]
-// #[repr(u8)]
-// pub enum Register {
-//     Status = 0x00,
-//     AdcMode = 0x01,
-//     IfMode = 0x02,
-//     RegCheck = 0x03,
-//     Data = 0x04,
-//     GpioCon = 0x06,
-//     Id = 0x07,
-//     Ch0 = 0x10,
-//     Ch1 = 0x11,
-//     Ch2 = 0x12,
-//     Ch3 = 0x13,
-//     SetupCon0 = 0x20,
-//     SetupCon1 = 0x21,
-//     SetupCon2 = 0x22,
-//     SetupCon3 = 0x23,
-//     FiltCon0 = 0x28,
-//     FiltCon1 = 0x29,
-//     FiltCon2 = 0x2A,
-//     FiltCon3 = 0x2B,
-//     Offset0 = 0x30,
-//     Offset1 = 0x31,
-//     Offset2 = 0x32,
-//     Offset3 = 0x33,
-//     Gain0 = 0x38,
-//     Gain1 = 0x39,
-//     Gain2 = 0x3A,
-//     Gain3 = 0x3B,
-// }
+impl filt_con::Data {
+    reg_bit!(sinc3_map, 0, 7, "If set, mapping of filter register changes to directly program the decimation rate of the sinc3 filter");
+    reg_bit!(enh_filt_en, set_enh_filt_en, 0, 3, "Enable postfilters for enhanced 50Hz and 60Hz rejection");
+    reg_bits!(enh_filt, set_enh_filt, 0, 0..=2, PostFilter, "Select postfilters for enhanced 50Hz and 60Hz rejection");
+    reg_bits!(order, set_order, 1, 5..=6, DigitalFilterOrder, "order of the digital filter that processes the modulator data");
+    reg_bits!(odr, set_odr, 1, 0..=4, "Output data rate");
+}

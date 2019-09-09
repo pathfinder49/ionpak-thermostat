@@ -7,6 +7,16 @@ pub enum ChecksumMode {
     Crc = 0b10,
 }
 
+impl From<u8> for ChecksumMode {
+    fn from(x: u8) -> Self {
+        match x {
+            0 => ChecksumMode::Off,
+            1 => ChecksumMode::Xor,
+            _ => ChecksumMode::Crc,
+        }
+    }
+}
+
 pub struct Checksum {
     mode: ChecksumMode,
     state: u8,
