@@ -34,6 +34,10 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
 mod board;
 use self::board::{gpio::Gpio, systick::get_time};
 mod ethmac;
+mod command_parser;
+use command_parser::{Command, CommandShow};
+mod session;
+use self::session::{Session, SessionOutput};
 mod ad7172;
 
 pub struct UART0;
@@ -129,6 +133,7 @@ fn main() -> ! {
                 writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
         };
     }
+
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
         println!("programmed MAC address is invalid, using default");
@@ -166,21 +171,20 @@ fn main() -> ! {
     create_socket!(sockets, tcp_rx_storage5, tcp_tx_storage5, tcp_handle5);
     create_socket!(sockets, tcp_rx_storage6, tcp_tx_storage6, tcp_handle6);
     create_socket!(sockets, tcp_rx_storage7, tcp_tx_storage7, tcp_handle7);
-    let handles = [
-        tcp_handle0,
-        tcp_handle1,
-        tcp_handle2,
-        tcp_handle3,
-        tcp_handle4,
-        tcp_handle5,
-        tcp_handle6,
-        tcp_handle7,
+    let mut sessions_handles = [
+        (Session::new(), tcp_handle0),
+        (Session::new(), tcp_handle1),
+        (Session::new(), tcp_handle2),
+        (Session::new(), tcp_handle3),
+        (Session::new(), tcp_handle4),
+        (Session::new(), tcp_handle5),
+        (Session::new(), tcp_handle6),
+        (Session::new(), tcp_handle7),
     ];
 
     let mut read_times = [0, 0];
     let mut data = None;
     // if a socket has sent the latest data
-    let mut socket_pending = [false; 8];
     loop {
         let _ = adc.data_ready()
             .and_then(|channel|
@@ -190,8 +194,8 @@ fn main() -> ! {
                         read_times[0] = read_times[1];
                         read_times[1] = now;
                         data = Some((now, Ok((channel, new_data))));
-                        for p in socket_pending.iter_mut() {
-                            *p = true;
+                        for (session, _) in sessions_handles.iter_mut() {
+                            session.set_report_pending();
                         }
                     })
                 ).unwrap_or(Ok(()))
@@ -199,17 +203,43 @@ fn main() -> ! {
             .map_err(|e| {
                 let now = get_time();
                 data = Some((now, Err(e)));
-                for p in socket_pending.iter_mut() {
-                    *p = true;
+                for (session, _) in sessions_handles.iter_mut() {
+                    session.set_report_pending();
                 }
             });
-        for (&tcp_handle, pending) in handles.iter().zip(socket_pending.iter_mut()) {
-            let socket = &mut *sockets.get::<TcpSocket>(tcp_handle);
+        for (session, tcp_handle) in sessions_handles.iter_mut() {
+            let socket = &mut *sockets.get::<TcpSocket>(*tcp_handle);
             if !socket.is_open() {
+                if session.is_dirty() {
+                    // Reset a previously uses session/socket
+                    *session = Session::new();
+                }
                 socket.listen(23).unwrap()
             }
 
-            if socket.may_send() && *pending {
+            if socket.may_recv() && socket.may_send() {
+                let command = socket.recv(|buf| session.feed(buf));
+
+                match command {
+                    Ok(SessionOutput::Nothing) => {}
+                    Ok(SessionOutput::Command(Command::Quit)) =>
+                        socket.close(),
+                    Ok(SessionOutput::Command(Command::Report(mode))) => {
+                        let _ = writeln!(socket, "Report mode: {:?}", mode);
+                    }
+                    Ok(SessionOutput::Command(Command::Show(CommandShow::ReportMode))) => {
+                        let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
+                    }
+                    Ok(SessionOutput::Command(command)) => {
+                        let _ = writeln!(socket, "Not implemented: {:?}", command);
+                    }
+                    Ok(SessionOutput::Error(e)) => {
+                        let _ = writeln!(socket, "Command error: {:?}", e);
+                    }
+                    Err(_) => {}
+                }
+            }
+            if socket.may_send() && session.is_report_pending() {
                 match &data {
                     Some((time, Ok((channel, input)))) => {
                         let interval = read_times[1] - read_times[0];
@@ -223,7 +253,7 @@ fn main() -> ! {
                     }
                     None => {}
                 }
-                *pending = false;
+                session.mark_report_sent();
             }
         }
         match iface.poll(&mut sockets, Instant::from_millis((get_time() / 1000) as i64)) {
