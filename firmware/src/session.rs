@@ -17,7 +17,7 @@ impl LineReader {
     }
 
     pub fn feed(&mut self, c: u8) -> Option<&str> {
-        if (c == 13 || c == 10) {
+        if c == 13 || c == 10 {
             // Enter
             if self.pos > 0 {
                 let len = self.pos;

@@ -35,7 +35,7 @@ mod board;
 use self::board::{gpio::Gpio, systick::get_time};
 mod ethmac;
 mod command_parser;
-use command_parser::{Command, CommandShow};
+use command_parser::{Command, ShowCommand};
 mod session;
 use self::session::{Session, SessionOutput};
 mod ad7172;
@@ -227,7 +227,7 @@ fn main() -> ! {
                     Ok(SessionOutput::Command(Command::Report(mode))) => {
                         let _ = writeln!(socket, "Report mode: {:?}", mode);
                     }
-                    Ok(SessionOutput::Command(Command::Show(CommandShow::ReportMode))) => {
+                    Ok(SessionOutput::Command(Command::Show(ShowCommand::ReportMode))) => {
                         let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
                     }
                     Ok(SessionOutput::Command(command)) => {

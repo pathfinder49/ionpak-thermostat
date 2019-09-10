@@ -1,4 +1,4 @@
-use logos::{Logos, Lexer};
+use logos::Logos;
 use super::session::ReportMode;
 
 #[derive(Logos, Debug, PartialEq)]
@@ -37,14 +37,14 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-pub enum CommandShow {
+pub enum ShowCommand {
     ReportMode,
 }
 
 #[derive(Debug)]
 pub enum Command {
     Quit,
-    Show(CommandShow),
+    Show(ShowCommand),
     Report(ReportMode),
 }
 
@@ -73,7 +73,7 @@ impl Command {
             Quit => Ok(Command::Quit),
             Report => choice![
                 Mode => choice![
-                    End => Ok(Command::Show(CommandShow::ReportMode)),
+                    End => Ok(Command::Show(ShowCommand::ReportMode)),
                     Off => Ok(Command::Report(ReportMode::Off)),
                     Once => Ok(Command::Report(ReportMode::Once)),
                     Continuous => Ok(Command::Report(ReportMode::Continuous)),
