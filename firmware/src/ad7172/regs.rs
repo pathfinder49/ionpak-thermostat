@@ -14,19 +14,25 @@ pub trait RegisterData {
 
 macro_rules! def_reg {
     ($Reg: ident, $reg: ident, $addr: expr, $size: expr) => {
+        /// AD7172 register
         pub struct $Reg;
         impl Register for $Reg {
+            /// Register contents
             type Data = $reg::Data;
+            /// Register address
             fn address(&self) -> u8 {
                 $addr
             }
         }
         mod $reg {
+            /// Register contents
             pub struct Data(pub [u8; $size]);
             impl super::RegisterData for Data {
+                /// Generate zeroed register contents
                 fn empty() -> Self {
                     Data([0; $size])
                 }
+                /// Borrow for SPI transfer
                 fn as_mut(&mut self) -> &mut [u8] {
                     &mut self.0
                 }
@@ -190,11 +196,39 @@ impl setup_con::Data {
     reg_bits!(ref_sel, set_ref_sel, 1, 4..=5, RefSource, "Select reference source for conversion");
 }
 
-def_reg!(FiltCon, u8, filt_con, 0x80, 2);
+def_reg!(FiltCon, u8, filt_con, 0x28, 2);
 impl filt_con::Data {
     reg_bit!(sinc3_map, 0, 7, "If set, mapping of filter register changes to directly program the decimation rate of the sinc3 filter");
     reg_bit!(enh_filt_en, set_enh_filt_en, 0, 3, "Enable postfilters for enhanced 50Hz and 60Hz rejection");
     reg_bits!(enh_filt, set_enh_filt, 0, 0..=2, PostFilter, "Select postfilters for enhanced 50Hz and 60Hz rejection");
     reg_bits!(order, set_order, 1, 5..=6, DigitalFilterOrder, "order of the digital filter that processes the modulator data");
     reg_bits!(odr, set_odr, 1, 0..=4, "Output data rate");
+}
+
+def_reg!(Offset, u8, offset, 0x30, 3);
+impl offset::Data {
+    pub fn offset(&self) -> u32 {
+        (u32::from(self.0[0]) << 16) |
+        (u32::from(self.0[1]) << 8) |
+        u32::from(self.0[2])
+    }
+    pub fn set_offset(&mut self, value: u32) {
+        self.0[0] = (value >> 16) as u8;
+        self.0[1] = (value >> 8) as u8;
+        self.0[2] = value as u8;
+    }
+}
+
+def_reg!(Gain, u8, gain, 0x38, 3);
+impl gain::Data {
+    pub fn gain(&self) -> u32 {
+        (u32::from(self.0[0]) << 16) |
+        (u32::from(self.0[1]) << 8) |
+        u32::from(self.0[2])
+    }
+    pub fn set_gain(&mut self, value: u32) {
+        self.0[0] = (value >> 16) as u8;
+        self.0[1] = (value >> 8) as u8;
+        self.0[2] = value as u8;
+    }
 }
