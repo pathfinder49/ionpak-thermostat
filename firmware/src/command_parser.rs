@@ -24,6 +24,10 @@ enum Token {
     Once,
     #[token = "continuous"]
     Continuous,
+    #[token = "enable"]
+    Enable,
+    #[token = "disable"]
+    Disable,
 
     #[regex = "[0-9]+"]
     Number,
@@ -34,6 +38,7 @@ pub enum Error {
     Parser,
     UnexpectedEnd,
     UnexpectedToken(Token),
+    NoSuchChannel,
 }
 
 #[derive(Debug)]
@@ -41,14 +46,24 @@ pub enum ShowCommand {
     ReportMode,
 }
 
+
+#[derive(Debug)]
+pub enum ChannelCommand {
+    Enable,
+    Disable,
+}
+
 #[derive(Debug)]
 pub enum Command {
     Quit,
     Show(ShowCommand),
     Report(ReportMode),
+    Channel(u8, ChannelCommand),
 }
 
-
+const CHANNEL_IDS: &'static [&'static str] = &[
+    "0", "1", "2", "3",
+];
 
 impl Command {
     pub fn parse(input: &str) -> Result<Self, Error> {
@@ -79,6 +94,27 @@ impl Command {
                     Continuous => Ok(Command::Report(ReportMode::Continuous)),
                 ],
                 End => Ok(Command::Report(ReportMode::Once)),
+            ],
+            Channel => choice![
+                Number => {
+                    let channel = CHANNEL_IDS.iter()
+                        .position(|id| *id == lexer.slice());
+                    match channel {
+                        Some(channel) => {
+                            choice![
+                                Enable => Ok(Command::Channel(
+                                    channel as u8,
+                                    ChannelCommand::Enable
+                                )),
+                                Disable => Ok(Command::Channel(
+                                    channel as u8,
+                                    ChannelCommand::Enable
+                                )),
+                            ]
+                        }
+                        None => Err(Error::NoSuchChannel)
+                    }
+                },
             ],
         ]
     }
