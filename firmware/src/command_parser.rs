@@ -84,8 +84,8 @@ impl Command {
                             $block
                         }
                     )*
-                    Token::End => Err(Error::UnexpectedEnd),
-                    _ => Err(Error::UnexpectedToken(lexer.token))
+                    Token::End => return Err(Error::UnexpectedEnd),
+                    _ => return Err(Error::UnexpectedToken(lexer.token))
                 }
             };
         }
@@ -94,7 +94,7 @@ impl Command {
             ($result: expr) => {
                 match lexer.token {
                     Token::End => Ok($result),
-                    _ => Err(Error::UnexpectedToken(lexer.token)),
+                    _ => return Err(Error::UnexpectedToken(lexer.token)),
                 }
             };
         }
@@ -111,42 +111,31 @@ impl Command {
                 ],
                 End => Ok(Command::Report(ReportMode::Once)),
             ],
-            Channel => choice![
-                Number => {
-                    let channel = CHANNEL_IDS.iter()
-                        .position(|id| *id == lexer.slice());
-                    match channel {
-                        Some(channel) => {
-                            choice![
-                                Enable => Ok(Command::Channel(
-                                    channel as u8,
-                                    ChannelCommand::Enable
-                                )),
-                                Disable => Ok(Command::Channel(
-                                    channel as u8,
-                                    ChannelCommand::Enable
-                                )),
-                                Setup => choice![
-                                    Number => {
-                                        let setup = SETUP_IDS.iter()
-                                            .position(|id| *id == lexer.slice());
-                                        match setup {
-                                            Some(setup) =>
-                                                end!(Command::Channel(
-                                                    channel as u8,
-                                                    ChannelCommand::Setup(setup as u8)
-                                                )),
-                                            None =>
-                                                Err(Error::NoSuchSetup)
-                                        }
-                                    },
-                                ],
-                            ]
-                        }
-                        None => Err(Error::NoSuchChannel)
-                    }
-                },
-            ],
+            Channel => {
+                let channel = choice![
+                    Number => {
+                        CHANNEL_IDS.iter()
+                            .position(|id| *id == lexer.slice())
+                            .ok_or(Error::NoSuchChannel)
+                    },
+                ]? as u8;
+                choice![
+                    Enable =>
+                        Ok(Command::Channel(channel, ChannelCommand::Enable)),
+                    Disable =>
+                        Ok(Command::Channel(channel, ChannelCommand::Enable)),
+                    Setup => {
+                        let setup = choice![
+                            Number => {
+                                SETUP_IDS.iter()
+                                    .position(|id| *id == lexer.slice())
+                                    .ok_or(Error::NoSuchSetup)
+                            },
+                        ]? as u8;
+                        end!(Command::Channel(channel, ChannelCommand::Setup(setup)))
+                    },
+                ]
+            },
         ]
     }
 }
