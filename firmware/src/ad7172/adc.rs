@@ -2,7 +2,7 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::blocking::spi::Transfer;
 use super::checksum::{ChecksumMode, Checksum};
 use super::AdcError;
-use super::regs::*;
+use super::{regs, regs::RegisterData, Input, RefSource};
 
 /// AD7172-2 implementation
 ///
@@ -27,32 +27,44 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
 
     /// `0x00DX` for AD7271-2
     pub fn identify(&mut self) -> Result<u16, AdcError<SPI::Error>> {
-        self.read_reg(&Id)
+        self.read_reg(&regs::Id)
             .map(|id| id.id())
     }
 
     pub fn set_checksum_mode(&mut self, mode: ChecksumMode) -> Result<(), AdcError<SPI::Error>> {
-        let mut ifmode = self.read_reg(&IfMode)?;
+        // Cannot use update_reg() here because checksum_mode is
+        // updated between read_reg() and write_reg().
+        let mut ifmode = self.read_reg(&regs::IfMode)?;
         ifmode.set_crc(mode);
         self.checksum_mode = mode;
-        self.write_reg(&IfMode, &mut ifmode)?;
+        self.write_reg(&regs::IfMode, &mut ifmode)?;
         Ok(())
     }
 
-    // pub fn setup(&mut self) -> Result<(), SPI::Error> {
-    //     let mut buf = [0, 0, 0];
-    //     adc.write_reg(Register::AdcMode, &mut buf)?;
-    //     let mut buf = [0, 1, 0];
-    //     adc.write_reg(Register::IfMode, &mut buf)?;
-    //     let mut buf = [0, 0, 0];
-    //     adc.write_reg(Register::GpioCon, &mut buf)?;
-
-    //     Ok(())
-    // }
+    pub fn setup_channel(
+        &mut self, index: u8, in_pos: Input, in_neg: Input
+    ) -> Result<(), AdcError<SPI::Error>> {
+        self.update_reg(&regs::SetupCon { index }, |data| {
+            data.set_bi_unipolar(false);
+            data.set_refbuf_pos(true);
+            data.set_refbuf_neg(true);
+            data.set_ainbuf_pos(true);
+            data.set_ainbuf_neg(true);
+            // TODO: which RefSource?
+            data.set_ref_sel(RefSource::Internal);
+        })?;
+        self.update_reg(&regs::Channel { index }, |data| {
+            data.set_setup(index);
+            data.set_enabled(true);
+            data.set_a_in_pos(in_pos);
+            data.set_a_in_neg(in_neg);
+        })?;
+        Ok(())
+    }
 
     /// Returns the channel the data is from
     pub fn data_ready(&mut self) -> Result<Option<u8>, AdcError<SPI::Error>> {
-        self.read_reg(&Status)
+        self.read_reg(&regs::Status)
             .map(|status| {
                 if status.ready() {
                     Some(status.channel())
@@ -64,11 +76,11 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
 
     /// Get data
     pub fn read_data(&mut self) -> Result<u32, AdcError<SPI::Error>> {
-        self.read_reg(&Data)
+        self.read_reg(&regs::Data)
             .map(|data| data.data())
     }
 
-    pub fn read_reg<R: Register>(&mut self, reg: &R) -> Result<R::Data, AdcError<SPI::Error>> {
+    fn read_reg<R: regs::Register>(&mut self, reg: &R) -> Result<R::Data, AdcError<SPI::Error>> {
         let mut reg_data = R::Data::empty();
         let address = 0x40 | reg.address();
         let mut checksum = Checksum::new(self.checksum_mode);
@@ -85,7 +97,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(reg_data)
     }
 
-    pub fn write_reg<R: Register>(&mut self, reg: &R, reg_data: &mut R::Data) -> Result<(), AdcError<SPI::Error>> {
+    fn write_reg<R: regs::Register>(&mut self, reg: &R, reg_data: &mut R::Data) -> Result<(), AdcError<SPI::Error>> {
         let address = reg.address();
         let mut checksum = Checksum::new(match self.checksum_mode {
             ChecksumMode::Off => ChecksumMode::Off,
@@ -102,9 +114,9 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(())
     }
 
-    pub fn update_reg<R, F, A>(&mut self, reg: &R, f: F) -> Result<A, AdcError<SPI::Error>>
+    fn update_reg<R, F, A>(&mut self, reg: &R, f: F) -> Result<A, AdcError<SPI::Error>>
     where
-        R: Register,
+        R: regs::Register,
         F: FnOnce(&mut R::Data) -> A,
     {
         let mut reg_data = self.read_reg(reg)?;

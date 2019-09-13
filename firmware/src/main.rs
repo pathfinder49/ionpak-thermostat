@@ -85,6 +85,9 @@ macro_rules! create_socket {
     )
 }
 
+/// In nanoseconds
+const REPORT_INTERVAL: u64 = 100_000;
+
 #[entry]
 fn main() -> ! {
     let mut stdout = hio::hstdout().unwrap();
@@ -146,6 +149,10 @@ fn main() -> ! {
                 writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
         };
     }
+    // SENS0_{P,N}
+    adc.setup_channel(0, ad7172::Input::Ain0, ad7172::Input::Ain1).unwrap();
+    // SENS1_{P,N}
+    adc.setup_channel(1, ad7172::Input::Ain2, ad7172::Input::Ain3).unwrap();
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
@@ -195,31 +202,34 @@ fn main() -> ! {
         (Session::new(), tcp_handle7),
     ];
 
-    let mut read_times = [0, 0];
-    let mut data = None;
-    // if a socket has sent the latest data
+    let mut last_report = get_time();
+    // cumulative (sum, count)
+    let mut sample = [(0u64, 0usize); 2];
+    let mut report = None;
     loop {
-        let _ = adc.data_ready()
-            .and_then(|channel|
-                channel.map(|channel|
-                    adc.read_data().map(|new_data| {
-                        let now = get_time();
-                        read_times[0] = read_times[1];
-                        read_times[1] = now;
-                        data = Some((now, Ok((channel, new_data))));
-                        for (session, _) in sessions_handles.iter_mut() {
-                            session.set_report_pending();
-                        }
-                    })
-                ).unwrap_or(Ok(()))
-            )
-            .map_err(|e| {
-                let now = get_time();
-                data = Some((now, Err(e)));
-                for (session, _) in sessions_handles.iter_mut() {
-                    session.set_report_pending();
-                }
+        // ADC input
+        adc.data_ready()
+            .unwrap_or_else(|e| {
+                writeln!(stdout, "ADC error: {:?}", e);
+                None
+            }).map(|channel| {
+                let data = adc.read_data().unwrap();
+                sample[usize::from(channel)].0 += u64::from(data);
+                sample[usize::from(channel)].1 += 1;
             });
+        let now = get_time();
+        if now >= last_report + REPORT_INTERVAL {
+            last_report = now;
+            // TODO: calculate med instead of avg?
+            report = Some((now, [
+                sample[0].0 / (sample[0].1 as u64),
+                sample[1].0 / (sample[1].1 as u64),
+            ]));
+            for (session, _) in sessions_handles.iter_mut() {
+                session.set_report_pending();
+            }
+        }
+
         for (session, tcp_handle) in sessions_handles.iter_mut() {
             let socket = &mut *sockets.get::<TcpSocket>(*tcp_handle);
             if !socket.is_open() {
@@ -256,18 +266,14 @@ fn main() -> ! {
                 }
             }
             if socket.may_send() && session.is_report_pending() {
-                match &data {
-                    Some((time, Ok((channel, input)))) => {
-                        let interval = read_times[1] - read_times[0];
-                        let _ = writeln!(socket, "t={}-{} channel={} input={}\r", time, interval, channel, input);
+                match &report {
+                    Some((time, samples)) => {
+                        let _ = writeln!(socket, "t={} sens0={} sens1={}\r",
+                            time, samples[0], samples[1]
+                        );
                     }
-                    Some((time, Err(ad7172::AdcError::ChecksumMismatch(Some(expected), Some(input))))) => {
-                        let _ = writeln!(socket, "t={} checksum_expected={:02X} checksum_input={:02X}\r", time, expected, input);
-                    }
-                    Some((time, Err(e))) => {
-                        let _ = writeln!(socket, "t={} adc_error={:?}\r", time, e);
-                    }
-                    None => {}
+                    None =>
+                        panic!("report_pending while is there is none yet"),
                 }
                 session.mark_report_sent();
             }
