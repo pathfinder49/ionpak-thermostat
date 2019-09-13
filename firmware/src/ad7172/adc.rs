@@ -68,7 +68,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
             .map(|data| data.data())
     }
 
-    fn read_reg<R: Register>(&mut self, reg: &R) -> Result<R::Data, AdcError<SPI::Error>> {
+    pub fn read_reg<R: Register>(&mut self, reg: &R) -> Result<R::Data, AdcError<SPI::Error>> {
         let mut reg_data = R::Data::empty();
         let address = 0x40 | reg.address();
         let mut checksum = Checksum::new(self.checksum_mode);
@@ -85,7 +85,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(reg_data)
     }
 
-    fn write_reg<R: Register>(&mut self, reg: &R, reg_data: &mut R::Data) -> Result<(), AdcError<SPI::Error>> {
+    pub fn write_reg<R: Register>(&mut self, reg: &R, reg_data: &mut R::Data) -> Result<(), AdcError<SPI::Error>> {
         let address = reg.address();
         let mut checksum = Checksum::new(match self.checksum_mode {
             ChecksumMode::Off => ChecksumMode::Off,
@@ -102,7 +102,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(())
     }
 
-    fn update_reg<R, F, A>(&mut self, reg: &R, f: F) -> Result<A, AdcError<SPI::Error>>
+    pub fn update_reg<R, F, A>(&mut self, reg: &R, f: F) -> Result<A, AdcError<SPI::Error>>
     where
         R: Register,
         F: FnOnce(&mut R::Data) -> A,

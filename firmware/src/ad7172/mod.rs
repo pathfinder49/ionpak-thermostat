@@ -1,4 +1,6 @@
-mod regs;
+use core::fmt;
+
+pub mod regs;
 mod checksum;
 pub use checksum::ChecksumMode;
 mod adc;
@@ -16,6 +18,7 @@ impl<SPI> From<SPI> for AdcError<SPI> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 #[repr(u8)]
 pub enum Input {
     Ain0 = 0,
@@ -51,6 +54,27 @@ impl From<u8> for Input {
     }
 }
 
+impl fmt::Display for Input {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        use Input::*;
+
+        match self {
+            Ain0 => "ain0",
+            Ain1 => "ain1",
+            Ain2 => "ain2",
+            Ain3 => "ain3",
+            Ain4 => "ain4",
+            TemperaturePos => "temperature+",
+            TemperatureNeg => "temperature-",
+            AnalogSupplyPos => "analogsupply+",
+            AnalogSupplyNeg => "analogsupply-",
+            RefPos => "ref+",
+            RefNeg => "ref-",
+            _ => "<INVALID>",
+        }.fmt(fmt)
+    }
+}
+
 /// Reference source for ADC conversion
 #[repr(u8)]
 pub enum RefSource {
@@ -71,6 +95,19 @@ impl From<u8> for RefSource {
             2 => RefSource::Avdd1MinusAvss,
             _ => RefSource::Invalid,
         }
+    }
+}
+
+impl fmt::Display for RefSource {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        use RefSource::*;
+
+        match self {
+            External => "external",
+            Internal => "internal",
+            Avdd1MinusAvss => "avdd1-avss",
+            _ => "<INVALID>",
+        }.fmt(fmt)
     }
 }
 

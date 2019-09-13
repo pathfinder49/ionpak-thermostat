@@ -40,7 +40,7 @@ macro_rules! def_reg {
         }
     };
     ($Reg: ident, $index: ty, $reg: ident, $addr: expr, $size: expr) => {
-        struct $Reg { pub index: $index, }
+        pub struct $Reg { pub index: $index, }
         impl Register for $Reg {
             type Data = $reg::Data;
             fn address(&self) -> u8 {

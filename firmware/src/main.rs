@@ -231,20 +231,44 @@ fn main() -> ! {
             }
 
             if socket.may_recv() && socket.may_send() {
-                let command = socket.recv(|buf| session.feed(buf));
+                let output = socket.recv(|buf| session.feed(buf));
 
-                match command {
+                match output {
                     Ok(SessionOutput::Nothing) => {}
-                    Ok(SessionOutput::Command(Command::Quit)) =>
-                        socket.close(),
-                    Ok(SessionOutput::Command(Command::Report(mode))) => {
-                        let _ = writeln!(socket, "Report mode: {:?}", mode);
-                    }
-                    Ok(SessionOutput::Command(Command::Show(ShowCommand::ReportMode))) => {
-                        let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
-                    }
-                    Ok(SessionOutput::Command(command)) => {
-                        let _ = writeln!(socket, "Not implemented: {:?}", command);
+                    Ok(SessionOutput::Command(command)) => match command {
+                        Command::Quit =>
+                            socket.close(),
+                        Command::Report(mode) => {
+                            let _ = writeln!(socket, "Report mode: {:?}", mode);
+                        }
+                        Command::Show(ShowCommand::ReportMode) => {
+                            let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
+                        }
+                        Command::Show(ShowCommand::Channel(index)) => {
+                            let _ = writeln!(socket, "Channel {:?} configuration", index);
+                            adc.read_reg(&ad7172::regs::Channel { index })
+                                .map(|data| {
+                                    let _ = writeln!(socket, "{} setup={}",
+                                        if data.enabled() { "enabled" } else { "disabled" },
+                                        data.setup()
+                                    );
+                                    let _ = writeln!(socket, "ain+={} ain-={}",
+                                        data.a_in_pos(), data.a_in_neg()
+                                    );
+                                });
+                            adc.read_reg(&ad7172::regs::SetupCon { index })
+                                .map(|data| {
+                                    let _ = writeln!(socket, "{} burnout={}, ref={}",
+                                        if data.bi_unipolar() { "bipolar" } else { "unipolar" },
+                                        if data.burnout_en() { "enabled" } else { "disabled" },
+                                        data.ref_sel()
+                                    );
+                                });
+                        }
+                        command => {
+                            // TODO: remove for exhaustion check
+                            let _ = writeln!(socket, "Not implemented: {:?}", command);
+                        }
                     }
                     Ok(SessionOutput::Error(e)) => {
                         let _ = writeln!(socket, "Command error: {:?}", e);

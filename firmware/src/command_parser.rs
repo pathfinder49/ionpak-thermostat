@@ -30,6 +30,18 @@ enum Token {
     Disable,
     #[token = "setup"]
     Setup,
+    #[token = "ref+"]
+    RefPos,
+    #[token = "ref-"]
+    RefNeg,
+    #[token = "ain+"]
+    AinPos,
+    #[token = "ain-"]
+    AinNeg,
+    #[token = "unipolar"]
+    Unipolar,
+    #[token = "burnout"]
+    Burnout,
 
     #[regex = "[0-9]+"]
     Number,
@@ -47,14 +59,24 @@ pub enum Error {
 #[derive(Debug)]
 pub enum ShowCommand {
     ReportMode,
+    Channel(u8),
 }
-
 
 #[derive(Debug)]
 pub enum ChannelCommand {
     Enable,
     Disable,
     Setup(u8),
+    EnableInput(InputBuffer),
+    DisableInput(InputBuffer),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum InputBuffer {
+    RefPos,
+    RefNeg,
+    AinPos,
+    AinNeg,
 }
 
 #[derive(Debug)]
@@ -99,6 +121,19 @@ impl Command {
             };
         }
 
+        macro_rules! channel_input {
+            ($channel: expr, $input: tt) => {
+                choice![
+                    End =>
+                        Ok(Command::Show(ShowCommand::Channel($channel))),
+                    Enable =>
+                        end![Command::Channel($channel, ChannelCommand::EnableInput(InputBuffer::$input))],
+                    Disable =>
+                        end![Command::Channel($channel, ChannelCommand::DisableInput(InputBuffer::$input))],
+                ]
+            };
+        }
+
         // Command grammar
         choice![
             Quit => Ok(Command::Quit),
@@ -120,6 +155,8 @@ impl Command {
                     },
                 ]? as u8;
                 choice![
+                    End =>
+                        Ok(Command::Show(ShowCommand::Channel(channel))),
                     Enable =>
                         Ok(Command::Channel(channel, ChannelCommand::Enable)),
                     Disable =>
@@ -134,6 +171,10 @@ impl Command {
                         ]? as u8;
                         end!(Command::Channel(channel, ChannelCommand::Setup(setup)))
                     },
+                    RefPos => channel_input!(channel, RefPos),
+                    RefNeg => channel_input!(channel, RefNeg),
+                    AinPos => channel_input!(channel, AinPos),
+                    AinNeg => channel_input!(channel, AinNeg),
                 ]
             },
         ]
