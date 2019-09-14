@@ -2,7 +2,7 @@
 #![no_std]
 #![no_main]
 
-use cortex_m_rt::{entry, heap_start};
+use cortex_m_rt::entry;
 use core::fmt::{self, Write};
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
@@ -212,7 +212,7 @@ fn main() -> ! {
         // ADC input
         adc.data_ready()
             .unwrap_or_else(|e| {
-                writeln!(stdout, "ADC error: {:?}", e);
+                writeln!(stdout, "ADC error: {:?}", e).unwrap();
                 None
             }).map(|channel| {
                 let data = adc.read_data().unwrap();

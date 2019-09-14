@@ -63,16 +63,19 @@ macro_rules! def_reg {
 
 macro_rules! reg_bit {
     ($getter: ident, $byte: expr, $bit: expr, $doc: expr) => {
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $getter(&self) -> bool {
             self.0[$byte].get_bit($bit)
         }
     };
     ($getter: ident, $setter: ident, $byte: expr, $bit: expr, $doc: expr) => {
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $getter(&self) -> bool {
             self.0[$byte].get_bit($bit)
         }
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $setter(&mut self, value: bool) {
             self.0[$byte].set_bit($bit, value);
@@ -82,32 +85,38 @@ macro_rules! reg_bit {
 
 macro_rules! reg_bits {
     ($getter: ident, $byte: expr, $bits: expr, $doc: expr) => {
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $getter(&self) -> u8 {
             self.0[$byte].get_bits($bits)
         }
     };
     ($getter: ident, $setter: ident, $byte: expr, $bits: expr, $doc: expr) => {
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $getter(&self) -> u8 {
             self.0[$byte].get_bits($bits)
         }
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $setter(&mut self, value: u8) {
             self.0[$byte].set_bits($bits, value);
         }
     };
     ($getter: ident, $byte: expr, $bits: expr, $ty: ty, $doc: expr) => {
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $getter(&self) -> $ty {
             self.0[$byte].get_bits($bits) as $ty
         }
     };
     ($getter: ident, $setter: ident, $byte: expr, $bits: expr, $ty: ty, $doc: expr) => {
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $getter(&self) -> $ty {
             self.0[$byte].get_bits($bits).into()
         }
+        #[allow(unused)]
         #[doc = $doc]
         pub fn $setter(&mut self, value: $ty) {
             self.0[$byte].set_bits($bits, value as u8);
@@ -156,11 +165,13 @@ impl channel::Data {
     reg_bits!(setup, set_setup, 0, 4..=5, "Setup number");
 
     /// Which input is connected to positive input of this channel
+    #[allow(unused)]
     pub fn a_in_pos(&self) -> Input {
         ((self.0[0].get_bits(0..=1) << 3) |
          self.0[1].get_bits(5..=7)).into()
     }
     /// Set which input is connected to positive input of this channel
+    #[allow(unused)]
     pub fn set_a_in_pos(&mut self, value: Input) {
         let value = value as u8;
         self.0[0].set_bits(0..=1, value >> 3);
@@ -207,11 +218,13 @@ impl filt_con::Data {
 
 def_reg!(Offset, u8, offset, 0x30, 3);
 impl offset::Data {
+    #[allow(unused)]
     pub fn offset(&self) -> u32 {
         (u32::from(self.0[0]) << 16) |
         (u32::from(self.0[1]) << 8) |
         u32::from(self.0[2])
     }
+    #[allow(unused)]
     pub fn set_offset(&mut self, value: u32) {
         self.0[0] = (value >> 16) as u8;
         self.0[1] = (value >> 8) as u8;
@@ -221,11 +234,13 @@ impl offset::Data {
 
 def_reg!(Gain, u8, gain, 0x38, 3);
 impl gain::Data {
+    #[allow(unused)]
     pub fn gain(&self) -> u32 {
         (u32::from(self.0[0]) << 16) |
         (u32::from(self.0[1]) << 8) |
         u32::from(self.0[2])
     }
+    #[allow(unused)]
     pub fn set_gain(&mut self, value: u32) {
         self.0[0] = (value >> 16) as u8;
         self.0[1] = (value >> 8) as u8;

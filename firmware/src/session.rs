@@ -67,7 +67,6 @@ impl fmt::Display for ReportMode {
             ReportMode::Off => "off",
             ReportMode::Once => "once",
             ReportMode::Continuous => "continuous",
-            _ => "<INVALID>",
         }.fmt(fmt)
     }
 }

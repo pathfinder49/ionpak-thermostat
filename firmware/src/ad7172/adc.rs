@@ -2,7 +2,7 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::blocking::spi::Transfer;
 use super::checksum::{ChecksumMode, Checksum};
 use super::AdcError;
-use super::{regs, regs::RegisterData, Input, RefSource};
+use super::{regs, regs::RegisterData, Input};
 
 /// AD7172-2 implementation
 ///
