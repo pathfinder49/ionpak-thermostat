@@ -39,12 +39,12 @@ macro_rules! def_reg {
             }
         }
     };
-    ($Reg: ident, $index: ty, $reg: ident, $addr: expr, $size: expr) => {
-        pub struct $Reg { pub index: $index, }
+    ($Reg: ident, u8, $reg: ident, $addr: expr, $size: expr) => {
+        pub struct $Reg { pub index: u8, }
         impl Register for $Reg {
             type Data = $reg::Data;
             fn address(&self) -> u8 {
-                $addr + (self.index as u8)
+                $addr + self.index
             }
         }
         mod $reg {
