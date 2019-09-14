@@ -219,7 +219,13 @@ fn main() -> ! {
             });
         let now = get_time();
         if now >= last_report + REPORT_INTERVAL {
-            last_report = now;
+            if now < last_report + 2 * REPORT_INTERVAL {
+                // Try to keep interval constant
+                last_report += REPORT_INTERVAL;
+            } else {
+                // Bad jitter, catch up
+                last_report = now;
+            }
             // TODO: calculate med instead of avg?
             report = Some((now, [
                 sample[0].0 / (sample[0].1 as u64),
