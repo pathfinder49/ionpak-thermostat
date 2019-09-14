@@ -263,9 +263,9 @@ fn main() -> ! {
                         Command::Show(ShowCommand::ReportMode) => {
                             let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
                         }
-                        command => {
-                            // TODO: remove for exhaustion check
-                            let _ = writeln!(socket, "Not implemented: {:?}", command);
+                        Command::Pwm { pwm_match, pwm_reload } => {
+                            board::set_timer_pwm(pwm_match, pwm_reload);
+                            let _ = writeln!(socket, "PWM duty cycle: {}/{}", pwm_match, pwm_reload);
                         }
                     }
                     Ok(SessionOutput::Error(e)) => {

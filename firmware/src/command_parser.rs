@@ -1,4 +1,5 @@
 use logos::Logos;
+use btoi::{btoi, ParseIntegerError};
 use super::session::ReportMode;
 
 #[derive(Logos, Debug, PartialEq)]
@@ -20,6 +21,8 @@ enum Token {
     Once,
     #[token = "continuous"]
     Continuous,
+    #[token = "pwm"]
+    Pwm,
 
     #[regex = "[0-9]+"]
     Number,
@@ -30,6 +33,13 @@ pub enum Error {
     Parser,
     UnexpectedEnd,
     UnexpectedToken(Token),
+    ParseInteger(ParseIntegerError)
+}
+
+impl From<ParseIntegerError> for Error {
+    fn from(e: ParseIntegerError) -> Self {
+        Error::ParseInteger(e)
+    }
 }
 
 #[derive(Debug)]
@@ -42,6 +52,10 @@ pub enum Command {
     Quit,
     Show(ShowCommand),
     Report(ReportMode),
+    Pwm {
+        pwm_match: u32,
+        pwm_reload: u32,
+    },
 }
 
 impl Command {
@@ -85,6 +99,27 @@ impl Command {
                 ],
                 End => Ok(Command::Report(ReportMode::Once)),
             ],
+            Pwm => {
+                if lexer.token != Token::Number {
+                    return Err(Error::UnexpectedToken(lexer.token));
+                }
+                let pwm_match = btoi(lexer.slice().as_bytes())?;
+                lexer.advance();
+
+                if lexer.token != Token::Number {
+                    return Err(Error::UnexpectedToken(lexer.token));
+                }
+                let pwm_reload = btoi(lexer.slice().as_bytes())?;
+                lexer.advance();
+
+                if lexer.token != Token::End {
+                    return Err(Error::UnexpectedToken(lexer.token));
+                }
+
+                end!(Command::Pwm {
+                    pwm_match, pwm_reload,
+                })
+            },
         ]
     }
 }

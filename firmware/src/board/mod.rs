@@ -174,6 +174,22 @@ pub fn init() {
     });
 }
 
+pub fn set_timer_pwm(matchr: u32, ilr: u32) {
+    macro_rules! set_timer_pwm {
+        ($T: tt) => (
+            let timer = unsafe { &*tm4c129x::$T::ptr() };
+            timer.tamatchr.write(|w| unsafe { w.bits(matchr) });
+            timer.tbmatchr.write(|w| unsafe { w.bits(matchr) });
+            timer.tailr.write(|w| unsafe { w.bits(ilr) });
+            timer.tbilr.write(|w| unsafe { w.bits(ilr) });
+        )
+    }
+    set_timer_pwm!(TIMER2);
+    set_timer_pwm!(TIMER3);
+    set_timer_pwm!(TIMER4);
+    set_timer_pwm!(TIMER5);
+}
+
 pub fn get_mac_address() -> [u8; 6] {
     let (userreg0, userreg1) = cortex_m::interrupt::free(|_cs| {
         let flashctl = unsafe { &*tm4c129x::FLASH_CTRL::ptr() };
