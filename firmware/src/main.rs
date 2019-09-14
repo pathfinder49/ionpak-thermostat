@@ -260,10 +260,10 @@ fn main() -> ! {
                         Command::Quit =>
                             socket.close(),
                         Command::Report(mode) => {
-                            let _ = writeln!(socket, "Report mode: {:?}", mode);
+                            let _ = writeln!(socket, "Report mode: {}", mode);
                         }
                         Command::Show(ShowCommand::ReportMode) => {
-                            let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
+                            let _ = writeln!(socket, "Report mode: {}", session.report_mode());
                         }
                         Command::Show(ShowCommand::Pid) => {
                             let _ = writeln!(socket, "PID settings");

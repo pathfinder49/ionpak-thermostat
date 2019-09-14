@@ -1,3 +1,4 @@
+use core::fmt;
 use nom::{
     IResult,
     branch::alt,
@@ -36,6 +37,27 @@ impl<'t> From<nom::Err<(&'t [u8], ErrorKind)>> for Error {
 impl From<ParseIntegerError> for Error {
     fn from(e: ParseIntegerError) -> Self {
         Error::ParseInteger(e)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Error::Incomplete =>
+                "incomplete input".fmt(fmt),
+            Error::UnexpectedInput(c) => {
+                "unexpected input: ".fmt(fmt)?;
+                c.fmt(fmt)
+            }
+            Error::Parser(e) => {
+                "parser: ".fmt(fmt)?;
+                (e as &dyn core::fmt::Debug).fmt(fmt)
+            }
+            Error::ParseInteger(e) => {
+                "parsing number: ".fmt(fmt)?;
+                e.fmt(fmt)
+            }
+        }
     }
 }
 

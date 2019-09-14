@@ -1,4 +1,5 @@
 use core::ops::Deref;
+use core::fmt;
 use super::command_parser::{Command, Error as ParserError};
 
 const MAX_LINE_LEN: usize = 64;
@@ -58,6 +59,17 @@ pub enum ReportMode {
     Off,
     Once,
     Continuous,
+}
+
+impl fmt::Display for ReportMode {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            ReportMode::Off => "off",
+            ReportMode::Once => "once",
+            ReportMode::Continuous => "continuous",
+            _ => "<INVALID>",
+        }.fmt(fmt)
+    }
 }
 
 pub enum SessionOutput {
