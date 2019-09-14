@@ -286,24 +286,24 @@ fn main() -> ! {
                             board::set_timer_pwm(width, total);
                             let _ = writeln!(socket, "PWM duty cycle: {}/{}", width, total);
                         }
-                        Command::Pid(p) => {
+                        Command::Pid { parameter, value } => {
                             use command_parser::PidParameter::*;
-                            match p {
-                                Target(value) =>
+                            match parameter {
+                                Target =>
                                     pid.set_target(value),
-                                KP(value) =>
+                                KP =>
                                     pid.update_parameters(|parameters| parameters.kp = value),
-                                KI(value) =>
+                                KI =>
                                     pid.update_parameters(|parameters| parameters.ki = value),
-                                KD(value) =>
+                                KD =>
                                     pid.update_parameters(|parameters| parameters.kd = value),
-                                OutputMin(value) =>
+                                OutputMin =>
                                     pid.update_parameters(|parameters| parameters.output_min = value),
-                                OutputMax(value) =>
+                                OutputMax =>
                                     pid.update_parameters(|parameters| parameters.output_max = value),
-                                IntegralMin(value) =>
+                                IntegralMin =>
                                     pid.update_parameters(|parameters| parameters.integral_min = value),
-                                IntegralMax(value) =>
+                                IntegralMax =>
                                     pid.update_parameters(|parameters| parameters.integral_max = value),
                             }
                             let _ = writeln!(socket, "PID parameter updated");

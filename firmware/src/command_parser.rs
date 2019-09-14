@@ -69,14 +69,14 @@ pub enum ShowCommand {
 
 #[derive(Debug, Clone)]
 pub enum PidParameter {
-    Target(f32),
-    KP(f32),
-    KI(f32),
-    KD(f32),
-    OutputMin(f32),
-    OutputMax(f32),
-    IntegralMin(f32),
-    IntegralMax(f32),
+    Target,
+    KP,
+    KI,
+    KD,
+    OutputMin,
+    OutputMax,
+    IntegralMin,
+    IntegralMax,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +88,10 @@ pub enum Command {
         width: u32,
         total: u32,
     },
-    Pid(PidParameter),
+    Pid {
+        parameter: PidParameter,
+        value: f32,
+    },
 }
 
 fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
@@ -149,17 +152,24 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     Ok((input, Ok(Command::Pwm { width, total })))
 }
 
-fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<PidParameter, Error>> {
-    let (input, parameter_f) =
-        alt((value(PidParameter::KP, tag("kp")),
-             value(PidParameter::KP, tag("ki"))
+fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, parameter) =
+        alt((value(PidParameter::Target, tag("target")),
+             value(PidParameter::KP, tag("kp")),
+             value(PidParameter::KI, tag("ki")),
+             value(PidParameter::KD, tag("kd")),
+             value(PidParameter::OutputMin, tag("output_min")),
+             value(PidParameter::OutputMax, tag("output_max")),
+             value(PidParameter::IntegralMin, tag("integral_min")),
+             value(PidParameter::IntegralMax, tag("integral_max"))
         ))(input)?;
     let (input, _) = whitespace(input)?;
     // TODO: parse float
     let (input, value) = unsigned(input)?;
-    let value = value.map(|value| parameter_f(value as f32))
+    let result = value
+        .map(|value| Command::Pid { parameter, value: value as f32  })
         .map_err(|e| e.into());
-    Ok((input, value))
+    Ok((input, result))
 }
 
 fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
@@ -169,10 +179,7 @@ fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     alt((
         preceded(
             whitespace,
-            |input| pid_parameter(input)
-                .map(|(input, parameter)| {
-                    (input, parameter.map(Command::Pid))
-                })
+            pid_parameter
         ),
         |input| Ok((input, Ok(Command::Show(ShowCommand::Pid))))
     ))(input)
