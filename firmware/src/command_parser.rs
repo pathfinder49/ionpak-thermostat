@@ -1,39 +1,36 @@
-use logos::Logos;
+use nom::{
+    IResult,
+    branch::alt,
+    bytes::complete::{tag, take_while1},
+    character::{is_digit, complete::char},
+    combinator::{map, value},
+    sequence::{preceded, tuple, Tuple},
+    multi::fold_many1,
+    error::ErrorKind,
+};
 use btoi::{btoi, ParseIntegerError};
 use super::session::ReportMode;
 
-#[derive(Logos, Debug, PartialEq)]
-enum Token {
-    #[end]
-    End,
-    #[error]
-    Error,
-
-    #[token = "Quit"]
-    Quit,
-    #[token = "report"]
-    Report,
-    #[token = "mode"]
-    Mode,
-    #[token = "off"]
-    Off,
-    #[token = "once"]
-    Once,
-    #[token = "continuous"]
-    Continuous,
-    #[token = "pwm"]
-    Pwm,
-
-    #[regex = "[0-9]+"]
-    Number,
-}
 
 #[derive(Debug)]
 pub enum Error {
-    Parser,
-    UnexpectedEnd,
-    UnexpectedToken(Token),
+    Parser(ErrorKind),
+    Incomplete,
+    UnexpectedInput(u8),
     ParseInteger(ParseIntegerError)
+}
+
+impl<'t> From<nom::Err<(&'t [u8], ErrorKind)>> for Error {
+    fn from(e: nom::Err<(&'t [u8], ErrorKind)>) -> Self {
+        match e {
+            nom::Err::Incomplete(_) =>
+                Error::Incomplete,
+            nom::Err::Error((_, e)) =>
+                Error::Parser(e),
+            nom::Err::Failure((_, e)) =>
+                Error::Parser(e),
+        }
+    }
 }
 
 impl From<ParseIntegerError> for Error {
@@ -42,84 +39,95 @@ impl From<ParseIntegerError> for Error {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ShowCommand {
     ReportMode,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Command {
     Quit,
     Show(ShowCommand),
     Report(ReportMode),
     Pwm {
-        pwm_match: u32,
-        pwm_reload: u32,
+        width: u32,
+        total: u32,
     },
 }
 
+fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
+    fold_many1(char(' '), (), |(), _| ())(input)
+}
+
+fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, ParseIntegerError>> {
+    take_while1(is_digit)(input)
+        .map(|(input, digits)| (input, btoi(digits)))
+}
+
+fn report_mode(input: &[u8]) -> IResult<&[u8], ReportMode> {
+    alt((value(ReportMode::Off, tag("off")),
+         value(ReportMode::Once, tag("once")),
+         value(ReportMode::Continuous, tag("continuous"))
+    ))(input)
+}
+
+fn report(input: &[u8]) -> IResult<&[u8], Command> {
+    preceded(
+        preceded(
+            tag("report"),
+            whitespace
+        ),
+        alt((
+            preceded(
+                whitespace,
+                preceded(
+                    tag("mode"),
+                    alt((
+                        preceded(
+                            whitespace,
+                            map(report_mode,
+                                |mode| Command::Report(mode))
+                        ),
+                        |input| Ok((input, Command::Show(ShowCommand::ReportMode)))
+                    ))
+                )),
+            |input| Ok((input, Command::Report(ReportMode::Once)))
+        ))
+    )(input)
+}
+
+fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, _) = tag("pwm")(input)?;
+    let (input, _) = whitespace(input)?;
+    let (input, width) = unsigned(input)?;
+    let width = match width {
+        Ok(width) => width,
+        Err(e) => return Ok((input, Err(e.into()))),
+    };
+    let (input, _) = whitespace(input)?;
+    let (input, total) = unsigned(input)?;
+    let total = match total {
+        Ok(total) => total,
+        Err(e) => return Ok((input, Err(e.into()))),
+    };
+    Ok((input, Ok(Command::Pwm { width, total })))
+}
+
+fn command(input: &[u8]) -> IResult<&[u8], Command> {
+    alt((value(Command::Quit, tag("quit")),
+         report
+    ))(input)
+}
+
 impl Command {
-    pub fn parse(input: &str) -> Result<Self, Error> {
-        let mut lexer = Token::lexer(input);
-
-        /// Match against a set of expected tokens
-        macro_rules! choice {
-            [$($token: tt => $block: stmt,)*] => {
-                match lexer.token {
-                    $(
-                        Token::$token => {
-                            lexer.advance();
-                            $block
-                        }
-                    )*
-                    Token::End => return Err(Error::UnexpectedEnd),
-                    _ => return Err(Error::UnexpectedToken(lexer.token))
-                }
-            };
+    pub fn parse(input: &[u8]) -> Result<Self, Error> {
+        match command(input) {
+            Ok((b"", command)) =>
+                Ok(command),
+            Ok((input_remain, _)) =>
+                Err(Error::UnexpectedInput(input_remain[0])),
+            Err(e) =>
+                Err(e.into()),
         }
-        /// Expecting no further tokens
-        macro_rules! end {
-            ($result: expr) => {
-                match lexer.token {
-                    Token::End => Ok($result),
-                    _ => return Err(Error::UnexpectedToken(lexer.token)),
-                }
-            };
-        }
-
-        // Command grammar
-        choice![
-            Quit => Ok(Command::Quit),
-            Report => choice![
-                Mode => choice![
-                    End => end!(Command::Show(ShowCommand::ReportMode)),
-                    Off => Ok(Command::Report(ReportMode::Off)),
-                    Once => Ok(Command::Report(ReportMode::Once)),
-                    Continuous => Ok(Command::Report(ReportMode::Continuous)),
-                ],
-                End => Ok(Command::Report(ReportMode::Once)),
-            ],
-            Pwm => {
-                if lexer.token != Token::Number {
-                    return Err(Error::UnexpectedToken(lexer.token));
-                }
-                let pwm_match = btoi(lexer.slice().as_bytes())?;
-                lexer.advance();
-
-                if lexer.token != Token::Number {
-                    return Err(Error::UnexpectedToken(lexer.token));
-                }
-                let pwm_reload = btoi(lexer.slice().as_bytes())?;
-                lexer.advance();
-
-                if lexer.token != Token::End {
-                    return Err(Error::UnexpectedToken(lexer.token));
-                }
-
-                end!(Command::Pwm {
-                    pwm_match, pwm_reload,
-                })
-            },
-        ]
     }
 }

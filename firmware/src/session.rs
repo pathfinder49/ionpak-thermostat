@@ -1,5 +1,5 @@
+use core::ops::Deref;
 use super::command_parser::{Command, Error as ParserError};
-
 
 const MAX_LINE_LEN: usize = 64;
 
@@ -16,13 +16,16 @@ impl LineReader {
         }
     }
 
-    pub fn feed(&mut self, c: u8) -> Option<&str> {
+    pub fn feed(&mut self, c: u8) -> Option<LineResult> {
         if c == 13 || c == 10 {
             // Enter
             if self.pos > 0 {
                 let len = self.pos;
                 self.pos = 0;
-                core::str::from_utf8(&self.buf[..len]).ok()
+                Some(LineResult {
+                    buf: self.buf.clone(),
+                    len,
+                })
             } else {
                 None
             }
@@ -35,6 +38,18 @@ impl LineReader {
             // Buffer is full, ignore
             None
         }
+    }
+}
+
+pub struct LineResult {
+    buf: [u8; MAX_LINE_LEN],
+    len: usize,
+}
+
+impl Deref for LineResult {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.buf[..self.len]
     }
 }
 
@@ -105,9 +120,10 @@ impl Session {
         let mut buf_bytes = 0;
         for (i, b) in buf.iter().enumerate() {
             buf_bytes = i + 1;
-            match self.reader.feed(*b) {
+            let line = self.reader.feed(*b);
+            match line {
                 Some(line) => {
-                    let command = Command::parse(line);
+                    let command = Command::parse(&line);
                     match command {
                         Ok(Command::Report(mode)) => {
                             self.report_mode = mode;
