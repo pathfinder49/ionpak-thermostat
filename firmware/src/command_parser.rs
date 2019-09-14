@@ -10,10 +10,6 @@ enum Token {
 
     #[token = "Quit"]
     Quit,
-    #[token = "show"]
-    Show,
-    #[token = "channel"]
-    Channel,
     #[token = "report"]
     Report,
     #[token = "mode"]
@@ -24,24 +20,6 @@ enum Token {
     Once,
     #[token = "continuous"]
     Continuous,
-    #[token = "enable"]
-    Enable,
-    #[token = "disable"]
-    Disable,
-    #[token = "setup"]
-    Setup,
-    #[token = "ref+"]
-    RefPos,
-    #[token = "ref-"]
-    RefNeg,
-    #[token = "ain+"]
-    AinPos,
-    #[token = "ain-"]
-    AinNeg,
-    #[token = "unipolar"]
-    Unipolar,
-    #[token = "burnout"]
-    Burnout,
 
     #[regex = "[0-9]+"]
     Number,
