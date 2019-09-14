@@ -31,6 +31,8 @@ macro_rules! println {
 #[panic_handler]
 pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
     println!("{}", info);
+    let mut stdout = hio::hstdout().unwrap();
+    let _ = writeln!(stdout, "{}", info);
     loop {}
 }
 
