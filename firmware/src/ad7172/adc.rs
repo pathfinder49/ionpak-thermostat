@@ -46,13 +46,14 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
     ) -> Result<(), AdcError<SPI::Error>> {
         self.update_reg(&regs::SetupCon { index }, |data| {
             data.set_bi_unipolar(false);
-            data.set_refbuf_pos(true);
-            data.set_refbuf_neg(true);
-            data.set_ainbuf_pos(true);
-            data.set_ainbuf_neg(true);
-            // TODO: which RefSource?
-            data.set_ref_sel(RefSource::Internal);
         })?;
+        self.update_reg(&regs::FiltCon { index }, |data| {
+            // 10 Hz data rate
+            data.set_odr(0b10011);
+        })?;
+        // let mut offset = <regs::Offset as regs::Register>::Data::empty();
+        // offset.set_offset(0);
+        // self.write_reg(&regs::Offset { index }, &mut offset);
         self.update_reg(&regs::Channel { index }, |data| {
             data.set_setup(index);
             data.set_enabled(true);
