@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn, proc_macro_hygiene)]
 #![no_std]
 #![no_main]
 
@@ -41,6 +41,7 @@ use command_parser::{Command, ShowCommand};
 mod session;
 use self::session::{Session, SessionOutput};
 mod ad7172;
+mod pid;
 
 pub struct UART0;
 
@@ -77,6 +78,15 @@ macro_rules! create_socket {
 
 /// In nanoseconds
 const REPORT_INTERVAL: u64 = 100_000;
+const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
+    kp: 1.0,
+    ki: 1.0,
+    kd: 1.0,
+    output_min: 0.0,
+    output_max: 0xffff as f32,
+    integral_min: 0.0,
+    integral_max: 0xffff as f32,
+};
 
 #[entry]
 fn main() -> ! {
@@ -142,6 +152,8 @@ fn main() -> ! {
     adc.setup_channel(0, ad7172::Input::Ain0, ad7172::Input::Ain1).unwrap();
     // SENS1_{P,N}
     adc.setup_channel(1, ad7172::Input::Ain2, ad7172::Input::Ain3).unwrap();
+
+    let mut pid = pid::Controller::new(DEFAULT_PID_PARAMETERS.clone());
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
@@ -241,6 +253,7 @@ fn main() -> ! {
             if socket.may_recv() && socket.may_send() {
                 let output = socket.recv(|buf| session.feed(buf));
 
+                // TODO: use "{}" to display pretty errors
                 match output {
                     Ok(SessionOutput::Nothing) => {}
                     Ok(SessionOutput::Command(command)) => match command {
@@ -252,9 +265,48 @@ fn main() -> ! {
                         Command::Show(ShowCommand::ReportMode) => {
                             let _ = writeln!(socket, "Report mode: {:?}", session.report_mode());
                         }
+                        Command::Show(ShowCommand::Pid) => {
+                            let _ = writeln!(socket, "PID settings");
+                            let _ = writeln!(socket, "target: {:.4}", pid.get_target());
+                            let p = pid.get_parameters();
+                            macro_rules! out {
+                                ($p: tt) => {
+                                    let _ = writeln!(socket, "{}: {:.4}", stringify!($p), p.$p);
+                                };
+                            }
+                            out!(kp);
+                            out!(ki);
+                            out!(kd);
+                            out!(output_min);
+                            out!(output_max);
+                            out!(integral_min);
+                            out!(integral_max);
+                        }
                         Command::Pwm { width, total } => {
                             board::set_timer_pwm(width, total);
                             let _ = writeln!(socket, "PWM duty cycle: {}/{}", width, total);
+                        }
+                        Command::Pid(p) => {
+                            use command_parser::PidParameter::*;
+                            match p {
+                                Target(value) =>
+                                    pid.set_target(value),
+                                KP(value) =>
+                                    pid.update_parameters(|parameters| parameters.kp = value),
+                                KI(value) =>
+                                    pid.update_parameters(|parameters| parameters.ki = value),
+                                KD(value) =>
+                                    pid.update_parameters(|parameters| parameters.kd = value),
+                                OutputMin(value) =>
+                                    pid.update_parameters(|parameters| parameters.output_min = value),
+                                OutputMax(value) =>
+                                    pid.update_parameters(|parameters| parameters.output_max = value),
+                                IntegralMin(value) =>
+                                    pid.update_parameters(|parameters| parameters.integral_min = value),
+                                IntegralMax(value) =>
+                                    pid.update_parameters(|parameters| parameters.integral_max = value),
+                            }
+                            let _ = writeln!(socket, "PID parameter updated");
                         }
                     }
                     Ok(SessionOutput::Error(e)) => {

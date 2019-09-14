@@ -56,8 +56,20 @@ impl Controller {
         output
     }
 
+    pub fn get_target(&mut self) -> f32 {
+        self.target
+    }
+
     pub fn set_target(&mut self, target: f32) {
         self.target = target;
+    }
+
+    pub fn get_parameters(&self) -> &Parameters {
+        &self.parameters
+    }
+
+    pub fn update_parameters<F: FnOnce(&mut Parameters)>(&mut self, f: F) {
+        f(&mut self.parameters);
     }
 
     #[allow(dead_code)]
