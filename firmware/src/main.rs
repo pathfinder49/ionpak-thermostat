@@ -1,9 +1,7 @@
 #![feature(const_fn)]
-#![feature(alloc_error_handler)]
 #![no_std]
 #![no_main]
 
-extern crate alloc;
 use cortex_m_rt::{entry, heap_start};
 use core::fmt::{self, Write};
 use smoltcp::time::Instant;
@@ -11,7 +9,6 @@ use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
 use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder};
 use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer};
 use cortex_m_semihosting::hio;
-use alloc_cortex_m::CortexMHeap;
 
 #[macro_export]
 macro_rules! print {
@@ -34,15 +31,6 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
     let mut stdout = hio::hstdout().unwrap();
     let _ = writeln!(stdout, "{}", info);
     loop {}
-}
-
-#[global_allocator]
-static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
-const HEAP_SIZE: usize = 8192;
-
-#[alloc_error_handler]
-fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
-    panic!("Allocation error for: {:?}", layout)
 }
 
 mod board;
@@ -96,7 +84,6 @@ fn main() -> ! {
     writeln!(stdout, "ionpak boot").unwrap();
     board::init();
     writeln!(stdout, "board initialized").unwrap();
-    unsafe { ALLOCATOR.init(heap_start() as usize, HEAP_SIZE) };
 
     println!(r#"
   _                         _
