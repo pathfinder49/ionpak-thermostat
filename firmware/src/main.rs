@@ -203,9 +203,10 @@ fn main() -> ! {
     ];
 
     let mut last_report = get_time();
+    let mut next_report = get_time();
     // cumulative (sum, count)
     let mut sample = [(0u64, 0usize); 2];
-    let mut report = None;
+    let mut report = [None; 2];
     loop {
         // ADC input
         adc.data_ready()
@@ -218,22 +219,24 @@ fn main() -> ! {
                 sample[usize::from(channel)].1 += 1;
             });
         let now = get_time();
-        if now >= last_report + REPORT_INTERVAL {
-            if now < last_report + 2 * REPORT_INTERVAL {
+        if now >= next_report {
+            if now < next_report + REPORT_INTERVAL {
                 // Try to keep interval constant
-                last_report += REPORT_INTERVAL;
+                next_report += REPORT_INTERVAL;
             } else {
                 // Bad jitter, catch up
-                last_report = now;
+                next_report = now + REPORT_INTERVAL;
             }
-            // TODO: calculate med instead of avg?
-            report = Some((now, [
-                sample[0].0 / (sample[0].1 as u64),
-                sample[1].0 / (sample[1].1 as u64),
-            ]));
+            for (channel, sample) in sample.iter().enumerate() {
+                if sample.1 > 0 {
+                    // TODO: calculate med instead of avg?
+                    report[channel] = Some(sample.0 / (sample.1 as u64));
+                }
+            }
             for (session, _) in sessions_handles.iter_mut() {
                 session.set_report_pending();
             }
+            last_report = get_time();
         }
 
         for (session, tcp_handle) in sessions_handles.iter_mut() {
@@ -272,15 +275,13 @@ fn main() -> ! {
                 }
             }
             if socket.may_send() && session.is_report_pending() {
-                match &report {
-                    Some((time, samples)) => {
-                        let _ = writeln!(socket, "t={} sens0={} sens1={}\r",
-                            time, samples[0], samples[1]
-                        );
-                    }
-                    None =>
-                        panic!("report_pending while is there is none yet"),
+                let _ = write!(socket, "t={}", last_report);
+                for (channel, report_data) in report.iter().enumerate() {
+                    report_data.map(|report_data| {
+                        let _ = write!(socket, " sens{}={:06X}", channel, report_data);
+                    });
                 }
+                let _ = writeln!(socket, "");
                 session.mark_report_sent();
             }
         }
