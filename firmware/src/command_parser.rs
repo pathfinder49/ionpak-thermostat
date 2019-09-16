@@ -146,6 +146,7 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
     )(input)
 }
 
+/// `pwm <width> <total>` - Set pwm duty cycle
 fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, _) = tag("pwm")(input)?;
     let (input, _) = whitespace(input)?;
@@ -182,6 +183,7 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     Ok((input, result))
 }
 
+/// `pid <parameter> <value>`
 fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, _) = tag("pid")(input)?;
     let (input, _) = whitespace(input)?;
