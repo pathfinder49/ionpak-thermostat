@@ -76,8 +76,6 @@ macro_rules! create_socket {
     )
 }
 
-/// In nanoseconds
-const REPORT_INTERVAL: u64 = 100_000;
 const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     kp: 1.0,
     ki: 1.0,
@@ -87,6 +85,8 @@ const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     integral_min: 0.0,
     integral_max: 0xffff as f32,
 };
+
+pub const CHANNELS: usize = 2;
 
 #[entry]
 fn main() -> ! {
@@ -204,11 +204,7 @@ fn main() -> ! {
         (Session::new(), tcp_handle7),
     ];
 
-    let mut last_report = get_time();
-    let mut next_report = get_time();
-    // cumulative (sum, count)
-    let mut sample = [(0u64, 0usize); 2];
-    let mut report = [None; 2];
+    let mut report = [None; CHANNELS];
     loop {
         // ADC input
         adc.data_ready()
@@ -216,30 +212,14 @@ fn main() -> ! {
                 writeln!(stdout, "ADC error: {:?}", e).unwrap();
                 None
             }).map(|channel| {
+                let now = get_time();
                 let data = adc.read_data().unwrap();
-                sample[usize::from(channel)].0 += u64::from(data);
-                sample[usize::from(channel)].1 += 1;
-            });
-        let now = get_time();
-        if now >= next_report {
-            if now < next_report + REPORT_INTERVAL {
-                // Try to keep interval constant
-                next_report += REPORT_INTERVAL;
-            } else {
-                // Bad jitter, catch up
-                next_report = now + REPORT_INTERVAL;
-            }
-            for (channel, sample) in sample.iter().enumerate() {
-                if sample.1 > 0 {
-                    // TODO: calculate med instead of avg?
-                    report[channel] = Some(sample.0 / (sample.1 as u64));
+                report[usize::from(channel)] = Some((now, data));
+
+                for (session, _) in sessions_handles.iter_mut() {
+                    session.set_report_pending(channel.into());
                 }
-            }
-            for (session, _) in sessions_handles.iter_mut() {
-                session.set_report_pending();
-            }
-            last_report = get_time();
-        }
+            });
 
         for (session, tcp_handle) in sessions_handles.iter_mut() {
             let socket = &mut *sockets.get::<TcpSocket>(*tcp_handle);
@@ -260,11 +240,18 @@ fn main() -> ! {
                     Ok(SessionOutput::Command(command)) => match command {
                         Command::Quit =>
                             socket.close(),
-                        Command::Report(mode) => {
-                            let _ = writeln!(socket, "Report mode: {}", mode);
+                        Command::Reporting(reporting) => {
+                            let _ = writeln!(socket, "Report mode set to {}", if reporting { "on" } else { "off" });
                         }
-                        Command::Show(ShowCommand::ReportMode) => {
-                            let _ = writeln!(socket, "Report mode: {}", session.report_mode());
+                        Command::Show(ShowCommand::Reporting) => {
+                            let _ = writeln!(socket, "Report mode: {}", if session.reporting() { "on" } else { "off" });
+                        }
+                        Command::Show(ShowCommand::Input) => {
+                            for (channel, report) in report.iter().enumerate() {
+                                report.map(|(time, data)| {
+                                    let _ = writeln!(socket, "t={}, sens{}={}", time, channel, data);
+                                });
+                            }
                         }
                         Command::Show(ShowCommand::Pid) => {
                             let _ = writeln!(socket, "PID settings");
@@ -316,15 +303,13 @@ fn main() -> ! {
                     Err(_) => {}
                 }
             }
-            if socket.may_send() && session.is_report_pending() {
-                let _ = write!(socket, "t={}", last_report);
-                for (channel, report_data) in report.iter().enumerate() {
-                    report_data.map(|report_data| {
-                        let _ = write!(socket, " sens{}={:06X}", channel, report_data);
+            if socket.may_send() {
+                if let Some(channel) = session.is_report_pending() {
+                    report[channel].map(|(time, data)| {
+                        let _ = writeln!(socket, "t={} sens{}={:06X}", time, channel, data);
                     });
+                    session.mark_report_sent(channel);
                 }
-                let _ = writeln!(socket, "");
-                session.mark_report_sent();
             }
         }
         match iface.poll(&mut sockets, Instant::from_millis((get_time() / 1000) as i64)) {

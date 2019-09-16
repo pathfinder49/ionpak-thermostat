@@ -1,6 +1,6 @@
 use core::ops::Deref;
-use core::fmt;
 use super::command_parser::{Command, Error as ParserError};
+use super::CHANNELS;
 
 const MAX_LINE_LEN: usize = 64;
 
@@ -54,23 +54,6 @@ impl Deref for LineResult {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ReportMode {
-    Off,
-    Once,
-    Continuous,
-}
-
-impl fmt::Display for ReportMode {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            ReportMode::Off => "off",
-            ReportMode::Once => "once",
-            ReportMode::Continuous => "continuous",
-        }.fmt(fmt)
-    }
-}
-
 pub enum SessionOutput {
     Nothing,
     Command(Command),
@@ -86,16 +69,16 @@ impl From<Result<Command, ParserError>> for SessionOutput {
 
 pub struct Session {
     reader: LineReader,
-    report_mode: ReportMode,
-    report_pending: bool,
+    reporting: bool,
+    report_pending: [bool; CHANNELS],
 }
 
 impl Session {
     pub fn new() -> Self {
         Session {
             reader: LineReader::new(),
-            report_mode: ReportMode::Off,
-            report_pending: false,
+            reporting: false,
+            report_pending: [false; CHANNELS],
         }
     }
 
@@ -103,28 +86,32 @@ impl Session {
         self.reader.pos > 0
     }
 
-    pub fn report_mode(&self) -> ReportMode {
-        self.report_mode
+    pub fn reporting(&self) -> bool {
+        self.reporting
     }
 
-    pub fn set_report_pending(&mut self) {
-        self.report_pending = true;
-    }
-
-    pub fn is_report_pending(&self) -> bool {
-        match self.report_mode {
-            ReportMode::Off => false,
-            _ => self.report_pending,
+    pub fn set_report_pending(&mut self, channel: usize) {
+        if self.reporting {
+            self.report_pending[channel] = true;
         }
     }
 
-    pub fn mark_report_sent(&mut self) {
-        self.report_pending = false;
-        match self.report_mode {
-            ReportMode::Once =>
-                self.report_mode = ReportMode::Off,
-            _ => {}
+    pub fn is_report_pending(&self) -> Option<usize> {
+        if ! self.reporting {
+            None
+        } else {
+            self.report_pending.iter()
+                .enumerate()
+                .fold(None, |result, (channel, report_pending)| {
+                    result.or_else(|| {
+                        if *report_pending { Some(channel) } else { None }
+                    })
+                })
         }
+    }
+
+    pub fn mark_report_sent(&mut self, channel: usize) {
+        self.report_pending[channel] = false;
     }
 
     pub fn feed(&mut self, buf: &[u8]) -> (usize, SessionOutput) {
@@ -136,8 +123,8 @@ impl Session {
                 Some(line) => {
                     let command = Command::parse(&line);
                     match command {
-                        Ok(Command::Report(mode)) => {
-                            self.report_mode = mode;
+                        Ok(Command::Reporting(reporting)) => {
+                            self.reporting = reporting;
                         }
                         _ => {}
                     }

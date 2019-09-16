@@ -10,7 +10,6 @@ use nom::{
     error::ErrorKind,
 };
 use lexical_core as lexical;
-use super::session::ReportMode;
 
 
 #[derive(Clone, Debug)]
@@ -63,7 +62,8 @@ impl fmt::Display for Error {
 
 #[derive(Debug, Clone)]
 pub enum ShowCommand {
-    ReportMode,
+    Input,
+    Reporting,
     Pid,
 }
 
@@ -83,7 +83,7 @@ pub enum PidParameter {
 pub enum Command {
     Quit,
     Show(ShowCommand),
-    Report(ReportMode),
+    Reporting(bool),
     Pwm {
         width: u32,
         total: u32,
@@ -112,10 +112,9 @@ fn float(input: &[u8]) -> IResult<&[u8], Result<f32, lexical::Error>> {
     Ok((input, result))
 }
 
-fn report_mode(input: &[u8]) -> IResult<&[u8], ReportMode> {
-    alt((value(ReportMode::Off, tag("off")),
-         value(ReportMode::Once, tag("once")),
-         value(ReportMode::Continuous, tag("continuous"))
+fn off_on(input: &[u8]) -> IResult<&[u8], bool> {
+    alt((value(false, tag("off")),
+         value(true, tag("on"))
     ))(input)
 }
 
@@ -133,13 +132,16 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
                     alt((
                         preceded(
                             whitespace,
-                            map(report_mode,
-                                |mode| Command::Report(mode))
+                            // `report mode <on | off>` - Switch repoting mode
+                            map(off_on,
+                                |reporting| Command::Reporting(reporting))
                         ),
-                        |input| Ok((input, Command::Show(ShowCommand::ReportMode)))
+                        // `report mode` - Show current reporting state
+                        |input| Ok((input, Command::Show(ShowCommand::Reporting)))
                     ))
                 )),
-            |input| Ok((input, Command::Report(ReportMode::Once)))
+            // `report` - Report once
+            |input| Ok((input, Command::Show(ShowCommand::Input)))
         ))
     )(input)
 }
