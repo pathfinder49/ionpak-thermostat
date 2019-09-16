@@ -173,7 +173,6 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
              value(PidParameter::IntegralMax, tag("integral_max"))
         ))(input)?;
     let (input, _) = whitespace(input)?;
-    // TODO: parse float
     let (input, value) = float(input)?;
     let result = value
         .map(|value| Command::Pid { parameter, value })
