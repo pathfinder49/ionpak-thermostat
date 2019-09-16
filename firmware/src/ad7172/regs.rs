@@ -198,7 +198,7 @@ impl channel::Data {
 
 def_reg!(SetupCon, u8, setup_con, 0x20, 2);
 impl setup_con::Data {
-    reg_bit!(bi_unipolar, set_bi_unipolar, 0, 6, "Unipolar (`false`) or bipolar (`true`) coded output");
+    reg_bit!(bipolar, set_bipolar, 0, 6, "Unipolar (`false`) or bipolar (`true`) coded output");
     reg_bit!(refbuf_pos, set_refbuf_pos, 0, 5, "Enable REF+ input buffer");
     reg_bit!(refbuf_neg, set_refbuf_neg, 0, 5, "Enable REF- input buffer");
     reg_bit!(ainbuf_pos, set_ainbuf_pos, 0, 3, "Enable AIN+ input buffer");

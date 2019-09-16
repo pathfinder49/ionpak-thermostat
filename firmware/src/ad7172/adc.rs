@@ -45,7 +45,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         &mut self, index: u8, in_pos: Input, in_neg: Input
     ) -> Result<(), AdcError<SPI::Error>> {
         self.update_reg(&regs::SetupCon { index }, |data| {
-            data.set_bi_unipolar(false);
+            data.set_bipolar(false);
         })?;
         self.update_reg(&regs::FiltCon { index }, |data| {
             // 10 Hz data rate
