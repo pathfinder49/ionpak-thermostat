@@ -113,9 +113,13 @@ impl fmt::Display for RefSource {
 
 #[repr(u8)]
 pub enum PostFilter {
+    /// 27 SPS, 47 dB rejection, 36.7 ms settling
     F27SPS = 0b010,
+    /// 21.25 SPS, 62 dB rejection, 40 ms settling
     F21SPS = 0b011,
+    /// 20 SPS, 86 dB rejection, 50 ms settling
     F20SPS = 0b101,
+    /// 16.67 SPS, 92 dB rejection, 60 ms settling
     F16SPS = 0b110,
     Invalid = 0b111,
 }

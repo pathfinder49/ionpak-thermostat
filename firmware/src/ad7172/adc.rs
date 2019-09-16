@@ -2,7 +2,10 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::blocking::spi::Transfer;
 use super::checksum::{ChecksumMode, Checksum};
 use super::AdcError;
-use super::{regs, regs::RegisterData, Input};
+use super::{
+    regs, regs::RegisterData,
+    Input, RefSource, PostFilter, DigitalFilterOrder,
+};
 
 /// AD7172-2 implementation
 ///
@@ -41,13 +44,27 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(())
     }
 
+    pub fn set_sync_enable(&mut self, enable: bool) -> Result<(), AdcError<SPI::Error>> {
+        self.update_reg(&regs::GpioCon, |data| {
+            data.set_sync_en(enable);
+        })
+    }
+
     pub fn setup_channel(
         &mut self, index: u8, in_pos: Input, in_neg: Input
     ) -> Result<(), AdcError<SPI::Error>> {
         self.update_reg(&regs::SetupCon { index }, |data| {
             data.set_bipolar(false);
+            data.set_refbuf_pos(true);
+            data.set_refbuf_neg(true);
+            data.set_ainbuf_pos(true);
+            data.set_ainbuf_neg(true);
+            data.set_ref_sel(RefSource::External);
         })?;
         self.update_reg(&regs::FiltCon { index }, |data| {
+            data.set_enh_filt_en(true);
+            data.set_enh_filt(PostFilter::F16SPS);
+            data.set_order(DigitalFilterOrder::Sinc5Sinc1);
             // 10 Hz data rate
             data.set_odr(0b10011);
         })?;

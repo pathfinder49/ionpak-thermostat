@@ -148,6 +148,7 @@ fn main() -> ! {
                 writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
         };
     }
+    adc.set_sync_enable(false).unwrap();
     // SENS0_{P,N}
     adc.setup_channel(0, ad7172::Input::Ain0, ad7172::Input::Ain1).unwrap();
     // SENS1_{P,N}

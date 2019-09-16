@@ -152,6 +152,11 @@ impl data::Data {
     }
 }
 
+def_reg!(GpioCon, gpio_con, 0x06, 2);
+impl gpio_con::Data {
+    reg_bit!(sync_en, set_sync_en, 0, 3, "Enables the SYNC/ERROR pin as a sync input");
+}
+
 def_reg!(Id, id, 0x07, 2);
 impl id::Data {
     pub fn id(&self) -> u16 {
