@@ -2,14 +2,14 @@ use core::fmt;
 use nom::{
     IResult,
     branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::complete::{is_a, tag, take_while1},
     character::{is_digit, complete::char},
     combinator::{map, value},
     sequence::preceded,
     multi::fold_many1,
     error::ErrorKind,
 };
-use btoi::{btoi, ParseIntegerError};
+use lexical_core as lexical;
 use super::session::ReportMode;
 
 
@@ -18,7 +18,7 @@ pub enum Error {
     Parser(ErrorKind),
     Incomplete,
     UnexpectedInput(u8),
-    ParseInteger(ParseIntegerError)
+    ParseNumber(lexical::Error)
 }
 
 impl<'t> From<nom::Err<(&'t [u8], ErrorKind)>> for Error {
@@ -34,9 +34,9 @@ impl<'t> From<nom::Err<(&'t [u8], ErrorKind)>> for Error {
     }
 }
 
-impl From<ParseIntegerError> for Error {
-    fn from(e: ParseIntegerError) -> Self {
-        Error::ParseInteger(e)
+impl From<lexical::Error> for Error {
+    fn from(e: lexical::Error) -> Self {
+        Error::ParseNumber(e)
     }
 }
 
@@ -53,9 +53,9 @@ impl fmt::Display for Error {
                 "parser: ".fmt(fmt)?;
                 (e as &dyn core::fmt::Debug).fmt(fmt)
             }
-            Error::ParseInteger(e) => {
+            Error::ParseNumber(e) => {
                 "parsing number: ".fmt(fmt)?;
-                e.fmt(fmt)
+                (e as &dyn core::fmt::Debug).fmt(fmt)
             }
         }
     }
@@ -98,9 +98,18 @@ fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
     fold_many1(char(' '), (), |(), _| ())(input)
 }
 
-fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, ParseIntegerError>> {
+fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, lexical::Error>> {
     take_while1(is_digit)(input)
-        .map(|(input, digits)| (input, btoi(digits)))
+        .map(|(input, digits)| (input, lexical::parse(digits)))
+}
+
+fn float(input: &[u8]) -> IResult<&[u8], Result<f32, lexical::Error>> {
+    let (input, sign) = is_a("-")(input)?;
+    let negative = sign.len() > 0;
+    let (input, digits) = take_while1(|c| is_digit(c) || c == '.' as u8)(input)?;
+    let result = lexical::parse(digits)
+        .map(|result: f32| if negative { -result } else { result });
+    Ok((input, result))
 }
 
 fn report_mode(input: &[u8]) -> IResult<&[u8], ReportMode> {
@@ -165,9 +174,9 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
         ))(input)?;
     let (input, _) = whitespace(input)?;
     // TODO: parse float
-    let (input, value) = unsigned(input)?;
+    let (input, value) = float(input)?;
     let result = value
-        .map(|value| Command::Pid { parameter, value: value as f32  })
+        .map(|value| Command::Pid { parameter, value })
         .map_err(|e| e.into());
     Ok((input, result))
 }
