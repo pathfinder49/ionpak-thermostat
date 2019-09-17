@@ -64,6 +64,7 @@ impl fmt::Display for Error {
 pub enum ShowCommand {
     Input,
     Reporting,
+    Pwm,
     Pid,
 }
 
@@ -80,14 +81,20 @@ pub enum PidParameter {
 }
 
 #[derive(Debug, Clone)]
+pub enum PwmMode {
+    Manual {
+        width: u32,
+        total: u32,
+    },
+    Pid,
+}
+
+#[derive(Debug, Clone)]
 pub enum Command {
     Quit,
     Show(ShowCommand),
     Reporting(bool),
-    Pwm {
-        width: u32,
-        total: u32,
-    },
+    Pwm(PwmMode),
     Pid {
         parameter: PidParameter,
         value: f32,
@@ -147,9 +154,7 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
 }
 
 /// `pwm <width> <total>` - Set pwm duty cycle
-fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
-    let (input, _) = tag("pwm")(input)?;
-    let (input, _) = whitespace(input)?;
+fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, width) = unsigned(input)?;
     let width = match width {
         Ok(width) => width,
@@ -161,7 +166,25 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
         Ok(total) => total,
         Err(e) => return Ok((input, Err(e.into()))),
     };
-    Ok((input, Ok(Command::Pwm { width, total })))
+    Ok((input, Ok(Command::Pwm(PwmMode::Manual { width, total }))))
+}
+
+/// `pwm pid` - Set PWM to be controlled by PID
+fn pwm_pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    value(Ok(Command::Pwm(PwmMode::Pid)), tag("pid"))(input)
+}
+
+fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, _) = tag("pwm")(input)?;
+    alt((
+        preceded(
+            whitespace,
+            alt((
+                pwm_pid,
+                pwm_manual,
+            ))),
+        |input| Ok((input, Ok(Command::Show(ShowCommand::Pwm))))
+    ))(input)
 }
 
 fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {

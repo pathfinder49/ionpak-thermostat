@@ -37,7 +37,7 @@ mod board;
 use self::board::{gpio::Gpio, systick::get_time};
 mod ethmac;
 mod command_parser;
-use command_parser::{Command, ShowCommand};
+use command_parser::{Command, ShowCommand, PwmMode};
 mod session;
 use self::session::{Session, SessionOutput};
 mod ad7172;
@@ -155,6 +155,8 @@ fn main() -> ! {
     adc.setup_channel(1, ad7172::Input::Ain2, ad7172::Input::Ain3).unwrap();
 
     let mut pid = pid::Controller::new(DEFAULT_PID_PARAMETERS.clone());
+    // Start with disengaged PID to let user setup parameters first
+    let mut pid_enabled = false;
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     if hardware_addr.is_multicast() {
@@ -214,8 +216,13 @@ fn main() -> ! {
             }).map(|channel| {
                 let now = get_time();
                 let data = adc.read_data().unwrap();
-                report[usize::from(channel)] = Some((now, data));
 
+                if channel == 0 && pid_enabled {
+                    let width = pid.update(data as f32) as u32;
+                    board::set_timer_pwm(width as u32, 0xffff);
+                }
+
+                report[usize::from(channel)] = Some((now, data));
                 for (session, _) in sessions_handles.iter_mut() {
                     session.set_report_pending(channel.into());
                 }
@@ -270,9 +277,19 @@ fn main() -> ! {
                             out!(integral_min);
                             out!(integral_max);
                         }
-                        Command::Pwm { width, total } => {
+                        Command::Show(ShowCommand::Pwm) => {
+                            let _ = writeln!(socket, "PWM: PID {}",
+                                 if pid_enabled { "engaged" } else { "disengaged" }
+                            );
+                        }
+                        Command::Pwm(PwmMode::Manual { width, total }) => {
+                            pid_enabled = false;
                             board::set_timer_pwm(width, total);
-                            let _ = writeln!(socket, "PWM duty cycle: {}/{}", width, total);
+                            let _ = writeln!(socket, "PWM duty cycle manually set to {}/{}", width, total);
+                        }
+                        Command::Pwm(PwmMode::Pid) => {
+                            pid_enabled = true;
+                            let _ = writeln!(socket, "PID enabled to control PWM");
                         }
                         Command::Pid { parameter, value } => {
                             use command_parser::PidParameter::*;
