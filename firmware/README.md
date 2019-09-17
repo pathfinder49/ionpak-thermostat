@@ -1,3 +1,35 @@
+# Thermostat v1 prototype firmware
+
+## Building
+
+### On Debian-based systems
+
+- install rustup
+
+```shell
+apt install gcc gcc-arm-none-eabi git-core
+rustup toolchain install nightly
+rustup update
+rustup target add thumbv7em-none-eabihf --toolchain nightly
+rustup default nightly
+rustup component add rust-src
+cargo install cargo-xbuild
+git clone https://github.com/llvm/llvm-project.git
+export RUST_COMPILER_RT_ROOT=`pwd`/llvm-project/compiler-rt
+
+cd firmware && cargo xbuild --release
+```
+
+The built ELF file will be at `target/thumbv7em-none-eabihf/release/ionpak-firmware`
+
+### Development build on NixOS
+
+Requires NixOS 19.09 or later for cargo-xbuild.
+
+```shell
+nix-shell --run "cd firmware && cargo xbuild --release"
+```
+
 ## Network
 
 ### Setup
