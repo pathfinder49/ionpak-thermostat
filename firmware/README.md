@@ -4,7 +4,7 @@
 
 ### On Debian-based systems
 
-- install rustup
+- install [rustup](https://rustup.rs/)
 
 ```shell
 apt install gcc gcc-arm-none-eabi git-core
