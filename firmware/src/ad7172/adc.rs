@@ -28,7 +28,7 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(adc)
     }
 
-    /// `0x00DX` for AD7271-2
+    /// `0x00DX` for AD7172-2
     pub fn identify(&mut self) -> Result<u16, AdcError<SPI::Error>> {
         self.read_reg(&regs::Id)
             .map(|id| id.id())
