@@ -203,11 +203,11 @@ impl channel::Data {
 
 def_reg!(SetupCon, u8, setup_con, 0x20, 2);
 impl setup_con::Data {
-    reg_bit!(bipolar, set_bipolar, 0, 6, "Unipolar (`false`) or bipolar (`true`) coded output");
-    reg_bit!(refbuf_pos, set_refbuf_pos, 0, 5, "Enable REF+ input buffer");
-    reg_bit!(refbuf_neg, set_refbuf_neg, 0, 5, "Enable REF- input buffer");
-    reg_bit!(ainbuf_pos, set_ainbuf_pos, 0, 3, "Enable AIN+ input buffer");
-    reg_bit!(ainbuf_neg, set_ainbuf_neg, 0, 2, "Enable AIN- input buffer");
+    reg_bit!(bipolar, set_bipolar, 0, 4, "Unipolar (`false`) or bipolar (`true`) coded output");
+    reg_bit!(refbuf_pos, set_refbuf_pos, 0, 3, "Enable REF+ input buffer");
+    reg_bit!(refbuf_neg, set_refbuf_neg, 0, 2, "Enable REF- input buffer");
+    reg_bit!(ainbuf_pos, set_ainbuf_pos, 0, 1, "Enable AIN+ input buffer");
+    reg_bit!(ainbuf_neg, set_ainbuf_neg, 0, 0, "Enable AIN- input buffer");
     reg_bit!(burnout_en, 1, 7, "enables a 10 µA current source on the positive analog input selected and a 10 µA current sink on the negative analog input selected");
     reg_bits!(ref_sel, set_ref_sel, 1, 4..=5, RefSource, "Select reference source for conversion");
 }
