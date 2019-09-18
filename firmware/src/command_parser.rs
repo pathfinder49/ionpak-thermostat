@@ -127,10 +127,7 @@ fn off_on(input: &[u8]) -> IResult<&[u8], bool> {
 
 fn report(input: &[u8]) -> IResult<&[u8], Command> {
     preceded(
-        preceded(
-            tag("report"),
-            whitespace
-        ),
+        tag("report"),
         alt((
             preceded(
                 whitespace,
