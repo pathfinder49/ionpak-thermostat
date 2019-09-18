@@ -129,8 +129,9 @@ fn main() -> ! {
                 writeln!(stdout, "ADC id: {:04X}", id).unwrap();
                 break;
             }
-            Ok(id) =>
-                writeln!(stdout, "Corrupt ADC id: {:04X}", id).unwrap(),
+            Ok(id) => {
+                // This always happens on the first attempt. So retry silently
+            }
         };
     }
     writeln!(stdout, "AD7172: setting checksum mode").unwrap();
@@ -159,8 +160,9 @@ fn main() -> ! {
     let mut pid_enabled = false;
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
+    writeln!(stdout, "MAC address: {}", hardware_addr).unwrap();
     if hardware_addr.is_multicast() {
-        println!("programmed MAC address is invalid, using default");
+        writeln!(stdout, "programmed MAC address is invalid, using default").unwrap();
         hardware_addr = EthernetAddress([0x10, 0xE2, 0xD5, 0x00, 0x03, 0x00]);
     }
     let mut ip_addrs = [IpCidr::new(IpAddress::v4(192, 168, 1, 26), 24)];
