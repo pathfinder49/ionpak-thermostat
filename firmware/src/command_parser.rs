@@ -3,10 +3,10 @@ use nom::{
     IResult,
     branch::alt,
     bytes::complete::{is_a, tag, take_while1},
-    character::{is_digit, complete::char},
-    combinator::{map, value},
+    character::{is_digit, complete::{char, one_of}},
+    combinator::{complete, map, value},
     sequence::preceded,
-    multi::fold_many1,
+    multi::{fold_many0, fold_many1},
     error::ErrorKind,
 };
 use lexical_core as lexical;
@@ -101,6 +101,15 @@ pub enum Command {
     },
 }
 
+fn end(input: &[u8]) -> IResult<&[u8], ()> {
+    complete(
+        fold_many0(
+            one_of("\r\n\t "),
+            (), |(), _| ()
+        )
+    )(input)
+}
+
 fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
     fold_many1(char(' '), (), |(), _| ())(input)
 }
@@ -141,11 +150,11 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
                                 |reporting| Command::Reporting(reporting))
                         ),
                         // `report mode` - Show current reporting state
-                        |input| Ok((input, Command::Show(ShowCommand::Reporting)))
+                        value(Command::Show(ShowCommand::Reporting), end)
                     ))
                 )),
             // `report` - Report once
-            |input| Ok((input, Command::Show(ShowCommand::Input)))
+            value(Command::Show(ShowCommand::Input), end)
         ))
     )(input)
 }
@@ -180,7 +189,7 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
                 pwm_pid,
                 pwm_manual,
             ))),
-        |input| Ok((input, Ok(Command::Show(ShowCommand::Pwm))))
+        value(Ok(Command::Show(ShowCommand::Pwm)), end)
     ))(input)
 }
 
@@ -213,15 +222,13 @@ fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
             whitespace,
             pid_parameter
         ),
-        |input| Ok((input, Ok(Command::Show(ShowCommand::Pid))))
+        value(Ok(Command::Show(ShowCommand::Pid)), end)
     ))(input)
 }
 
 fn command(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     alt((value(Ok(Command::Quit), tag("quit")),
-         |input| report(input).map(|(input, command)| {
-             (input, Ok(command))
-         }),
+         map(report, Ok),
          pwm,
          pid,
     ))(input)
