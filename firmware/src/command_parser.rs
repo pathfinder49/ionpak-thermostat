@@ -193,6 +193,7 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     ))(input)
 }
 
+/// `pid <parameter> <value>`
 fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, parameter) =
         alt((value(PidParameter::Target, tag("target")),
@@ -212,18 +213,18 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     Ok((input, result))
 }
 
-/// `pid <parameter> <value>`
+/// `pid` | pid_parameter
 fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
-    let (input, _) = tag("pid")(input)?;
-    let (input, _) = whitespace(input)?;
-
-    alt((
-        preceded(
-            whitespace,
-            pid_parameter
-        ),
-        value(Ok(Command::Show(ShowCommand::Pid)), end)
-    ))(input)
+    preceded(
+        tag("pid"),
+        alt((
+            preceded(
+                whitespace,
+                pid_parameter
+            ),
+            value(Ok(Command::Show(ShowCommand::Pid)), end)
+        ))
+    )(input)
 }
 
 fn command(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
