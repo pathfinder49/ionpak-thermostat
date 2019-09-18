@@ -65,8 +65,6 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
             data.set_enh_filt_en(true);
             data.set_enh_filt(PostFilter::F16SPS);
             data.set_order(DigitalFilterOrder::Sinc5Sinc1);
-            // 10 Hz data rate
-            data.set_odr(0b10011);
         })?;
         // let mut offset = <regs::Offset as regs::Register>::Data::empty();
         // offset.set_offset(0);
