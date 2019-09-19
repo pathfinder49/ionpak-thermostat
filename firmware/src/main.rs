@@ -2,9 +2,6 @@
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
 
-#[cfg(not(test))]
-extern crate std;
-
 use cortex_m_rt::entry;
 use core::fmt::{self, Write};
 use smoltcp::time::Instant;
