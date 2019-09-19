@@ -5,7 +5,7 @@ use nom::{
     bytes::complete::{is_a, tag, take_while1},
     character::{is_digit, complete::{char, one_of}},
     combinator::{complete, map, value},
-    sequence::preceded,
+    sequence::{preceded, separated_pair},
     multi::{fold_many0, fold_many1},
     error::ErrorKind,
 };
@@ -66,6 +66,7 @@ pub enum ShowCommand {
     Reporting,
     Pwm,
     Pid,
+    PostFilter,
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +103,10 @@ pub enum Command {
         channel: usize,
         parameter: PidParameter,
         value: f32,
+    },
+    PostFilter {
+        channel: usize,
+        rate: f32,
     },
 }
 
@@ -244,11 +249,34 @@ fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     ))(input)
 }
 
+fn postfilter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, _) = tag("postfilter")(input)?;
+    alt((
+        preceded(
+            whitespace,
+            |input| {
+                let (input, channel) = channel(input)?;
+                let (input, _) = whitespace(input)?;
+                let (input, _) = tag("rate")(input)?;
+                let (input, _) = whitespace(input)?;
+                let (input, rate) = float(input)?;
+                let result = rate
+                    .map(|rate| Command::PostFilter {
+                        channel, rate,
+                    });
+                Ok((input, result))
+            }
+        ),
+        value(Ok(Command::Show(ShowCommand::PostFilter)), end)
+    ))(input)
+}
+
 fn command(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     alt((value(Ok(Command::Quit), tag("quit")),
          map(report, Ok),
          pwm,
          pid,
+         postfilter,
     ))(input)
 }
 

@@ -78,6 +78,29 @@ impl<SPI: Transfer<u8>, NSS: OutputPin> Adc<SPI, NSS> {
         Ok(())
     }
 
+    pub fn get_postfilter(&mut self, index: u8) -> Result<Option<PostFilter>, AdcError<SPI::Error>> {
+        self.read_reg(&regs::FiltCon { index })
+            .map(|data| {
+                if data.enh_filt_en() {
+                    Some(data.enh_filt())
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn set_postfilter(&mut self, index: u8, filter: Option<PostFilter>) -> Result<(), AdcError<SPI::Error>> {
+        self.update_reg(&regs::FiltCon { index }, |data| {
+            match filter {
+                None => data.set_enh_filt_en(false),
+                Some(filter) => {
+                    data.set_enh_filt_en(true);
+                    data.set_enh_filt(filter);
+                }
+            }
+        })
+    }
+
     /// Returns the channel the data is from
     pub fn data_ready(&mut self) -> Result<Option<u8>, AdcError<SPI::Error>> {
         self.read_reg(&regs::Status)

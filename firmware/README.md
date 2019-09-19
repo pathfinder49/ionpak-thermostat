@@ -66,3 +66,4 @@ The scope of this setting is per TCP session.
 | `pid <0/1> output_max <value>`   |                                              |
 | `pid <0/1> integral_min <value>` |                                              |
 | `pid <0/1> integral_max <value>` |                                              |
+| `postfilter <0/1> rate <rate>`   | Set postfilter output data rate              |

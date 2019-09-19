@@ -111,6 +111,7 @@ impl fmt::Display for RefSource {
     }
 }
 
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum PostFilter {
     /// 27 SPS, 47 dB rejection, 36.7 ms settling
@@ -122,6 +123,49 @@ pub enum PostFilter {
     /// 16.67 SPS, 92 dB rejection, 60 ms settling
     F16SPS = 0b110,
     Invalid = 0b111,
+}
+
+impl PostFilter {
+    pub const VALID_VALUES: &'static [Self] = &[
+        PostFilter::F27SPS,
+        PostFilter::F21SPS,
+        PostFilter::F20SPS,
+        PostFilter::F16SPS,
+    ];
+
+    pub fn closest(rate: f32) -> Option<Self> {
+        /// (x - y).abs()
+        fn d(x: f32, y: f32) -> f32 {
+            if x >= y {
+                x - y
+            } else {
+                y - x
+            }
+        }
+
+        let mut best: Option<(f32, Self)> = None;
+        for value in Self::VALID_VALUES {
+            let error = d(rate, value.output_rate().unwrap());
+            let better = best
+                .map(|(best_error, _)| error < best_error)
+                .unwrap_or(true);
+            if better {
+                best = Some((error, *value));
+            }
+        }
+        best.map(|(_, best)| best)
+    }
+
+    /// Samples per Second
+    pub fn output_rate(&self) -> Option<f32> {
+        match self {
+            PostFilter::F27SPS => Some(27.0),
+            PostFilter::F21SPS => Some(21.25),
+            PostFilter::F20SPS => Some(20.0),
+            PostFilter::F16SPS => Some(16.67),
+            PostFilter::Invalid => None,
+        }
+    }
 }
 
 impl From<u8> for PostFilter {

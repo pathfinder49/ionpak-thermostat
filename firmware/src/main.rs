@@ -305,6 +305,24 @@ fn main() -> ! {
                                 );
                             }
                         }
+                        Command::Show(ShowCommand::PostFilter) => {
+                            for (channel, _) in states.iter().enumerate() {
+                                match adc.get_postfilter(channel as u8).unwrap() {
+                                    Some(filter) => {
+                                        let _ = writeln!(
+                                            socket, "channel {}: postfilter={:.2} SPS",
+                                            channel, filter.output_rate().unwrap()
+                                        );
+                                    }
+                                    None => {
+                                        let _ = writeln!(
+                                            socket, "channel {}: no postfilter",
+                                            channel
+                                        );
+                                    }
+                                }
+                            }
+                        }
                         Command::Pwm { channel, mode: PwmMode::Manual { width, total }} => {
                             states[channel].pid_enabled = false;
                             board::set_timer_pwm(width, total);
@@ -338,6 +356,21 @@ fn main() -> ! {
                                     pid.update_parameters(|parameters| parameters.integral_max = value),
                             }
                             let _ = writeln!(socket, "PID parameter updated");
+                        }
+                        Command::PostFilter { channel, rate } => {
+                            let filter = ad7172::PostFilter::closest(rate);
+                            match filter {
+                                Some(filter) => {
+                                    adc.set_postfilter(channel as u8, Some(filter)).unwrap();
+                                    let _ = writeln!(
+                                        socket, "channel {}: postfilter set to {:.2} SPS",
+                                        channel, filter.output_rate().unwrap()
+                                    );
+                                }
+                                None => {
+                                    let _ = writeln!(socket, "Unable to choose postfilter");
+                                }
+                            }
                         }
                     }
                     Ok(SessionOutput::Error(e)) => {
