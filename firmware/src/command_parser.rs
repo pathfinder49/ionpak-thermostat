@@ -94,8 +94,12 @@ pub enum Command {
     Quit,
     Show(ShowCommand),
     Reporting(bool),
-    Pwm(PwmMode),
+    Pwm {
+        channel: usize,
+        mode: PwmMode,
+    },
     Pid {
+        channel: usize,
         parameter: PidParameter,
         value: f32,
     },
@@ -134,6 +138,10 @@ fn off_on(input: &[u8]) -> IResult<&[u8], bool> {
     ))(input)
 }
 
+fn channel(input: &[u8]) -> IResult<&[u8], usize> {
+    map(one_of("01"), |c| (c as usize) - ('0' as usize))(input)
+}
+
 fn report(input: &[u8]) -> IResult<&[u8], Command> {
     preceded(
         tag("report"),
@@ -159,8 +167,10 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
     )(input)
 }
 
-/// `pwm <width> <total>` - Set pwm duty cycle
+/// `pwm <0-1> <width> <total>` - Set pwm duty cycle
 fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, channel) = channel(input)?;
+    let (input, _) = whitespace(input)?;
     let (input, width) = unsigned(input)?;
     let width = match width {
         Ok(width) => width,
@@ -172,12 +182,20 @@ fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
         Ok(total) => total,
         Err(e) => return Ok((input, Err(e.into()))),
     };
-    Ok((input, Ok(Command::Pwm(PwmMode::Manual { width, total }))))
+    Ok((input, Ok(Command::Pwm {
+        channel,
+        mode: PwmMode::Manual { width, total },
+    })))
 }
 
-/// `pwm pid` - Set PWM to be controlled by PID
+/// `pwm <0-1> pid` - Set PWM to be controlled by PID
 fn pwm_pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
-    value(Ok(Command::Pwm(PwmMode::Pid)), tag("pid"))(input)
+    let (input, channel) = channel(input)?;
+    let (input, _) = whitespace(input)?;
+    value(Ok(Command::Pwm {
+        channel,
+        mode: PwmMode::Pid,
+    }), tag("pid"))(input)
 }
 
 fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
@@ -193,8 +211,10 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     ))(input)
 }
 
-/// `pid <parameter> <value>`
+/// `pid <0-1> <parameter> <value>`
 fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, channel) = channel(input)?;
+    let (input, _) = whitespace(input)?;
     let (input, parameter) =
         alt((value(PidParameter::Target, tag("target")),
              value(PidParameter::KP, tag("kp")),
@@ -208,7 +228,7 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, _) = whitespace(input)?;
     let (input, value) = float(input)?;
     let result = value
-        .map(|value| Command::Pid { parameter, value })
+        .map(|value| Command::Pid { channel, parameter, value })
         .map_err(|e| e.into());
     Ok((input, result))
 }

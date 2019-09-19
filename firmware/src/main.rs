@@ -88,6 +88,15 @@ const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
 
 pub const CHANNELS: usize = 2;
 
+/// State per channel
+#[derive(Clone)]
+struct ControlState {
+    /// Report data (time, data)
+    report: Option<(u64, u32)>,
+    pid_enabled: bool,
+    pid: pid::Controller,
+}
+
 #[entry]
 fn main() -> ! {
     let mut stdout = hio::hstdout().unwrap();
@@ -155,9 +164,13 @@ fn main() -> ! {
     // SENS1_{P,N}
     adc.setup_channel(1, ad7172::Input::Ain2, ad7172::Input::Ain3).unwrap();
 
-    let mut pid = pid::Controller::new(DEFAULT_PID_PARAMETERS.clone());
-    // Start with disengaged PID to let user setup parameters first
-    let mut pid_enabled = false;
+    let init_state = ControlState {
+        report: None,
+        // Start with disengaged PID to let user setup parameters first
+        pid_enabled: false,
+        pid: pid::Controller::new(DEFAULT_PID_PARAMETERS.clone()),
+    };
+    let mut states = [init_state.clone(), init_state.clone()];
 
     let mut hardware_addr = EthernetAddress(board::get_mac_address());
     writeln!(stdout, "MAC address: {}", hardware_addr).unwrap();
@@ -208,7 +221,6 @@ fn main() -> ! {
         (Session::new(), tcp_handle7),
     ];
 
-    let mut report = [None; CHANNELS];
     loop {
         // ADC input
         adc.data_ready()
@@ -218,13 +230,16 @@ fn main() -> ! {
             }).map(|channel| {
                 let now = get_time();
                 let data = adc.read_data().unwrap();
+                let state = &mut states[usize::from(channel)];
 
-                if channel == 0 && pid_enabled {
-                    let width = pid.update(data as f32) as u32;
-                    board::set_timer_pwm(width as u32, 0xffff);
+                if state.pid_enabled {
+                    let width = state.pid.update(data as f32) as u32;
+                    if channel == 0 { // TODO
+                        board::set_timer_pwm(width as u32, 0xffff);
+                    }
                 }
 
-                report[usize::from(channel)] = Some((now, data));
+                state.report = Some((now, data));
                 for (session, _) in sessions_handles.iter_mut() {
                     session.set_report_pending(channel.into());
                 }
@@ -256,44 +271,53 @@ fn main() -> ! {
                             let _ = writeln!(socket, "Report mode: {}", if session.reporting() { "on" } else { "off" });
                         }
                         Command::Show(ShowCommand::Input) => {
-                            for (channel, report) in report.iter().enumerate() {
-                                report.map(|(time, data)| {
+                            for (channel, state) in states.iter().enumerate() {
+                                state.report.map(|(time, data)| {
                                     let _ = writeln!(socket, "t={}, sens{}={}", time, channel, data);
                                 });
                             }
                         }
                         Command::Show(ShowCommand::Pid) => {
-                            let _ = writeln!(socket, "PID settings");
-                            let _ = writeln!(socket, "target: {:.4}", pid.get_target());
-                            let p = pid.get_parameters();
-                            macro_rules! out {
-                                ($p: tt) => {
-                                    let _ = writeln!(socket, "{}: {:.4}", stringify!($p), p.$p);
-                                };
+                            for (channel, state) in states.iter().enumerate() {
+                                let _ = writeln!(socket, "PID settings for channel {}", channel);
+                                let pid = &states[channel].pid;
+                                let _ = writeln!(socket, "- target={:.4}", pid.get_target());
+                                let p = pid.get_parameters();
+                                macro_rules! out {
+                                    ($p: tt) => {
+                                        let _ = writeln!(socket, "* {}={:.4}", stringify!($p), p.$p);
+                                    };
+                                }
+                                out!(kp);
+                                out!(ki);
+                                out!(kd);
+                                out!(output_min);
+                                out!(output_max);
+                                out!(integral_min);
+                                out!(integral_max);
                             }
-                            out!(kp);
-                            out!(ki);
-                            out!(kd);
-                            out!(output_min);
-                            out!(output_max);
-                            out!(integral_min);
-                            out!(integral_max);
                         }
                         Command::Show(ShowCommand::Pwm) => {
-                            let _ = writeln!(socket, "PWM: PID {}",
-                                 if pid_enabled { "engaged" } else { "disengaged" }
-                            );
+                            for (channel, state) in states.iter().enumerate() {
+                                let _ = writeln!(socket, "PWM {}: PID {}",
+                                    channel,
+                                    if state.pid_enabled { "engaged" } else { "disengaged" }
+                                );
+                            }
                         }
-                        Command::Pwm(PwmMode::Manual { width, total }) => {
-                            pid_enabled = false;
+                        Command::Pwm { channel, mode: PwmMode::Manual { width, total }} => {
+                            states[channel].pid_enabled = false;
                             board::set_timer_pwm(width, total);
-                            let _ = writeln!(socket, "PWM duty cycle manually set to {}/{}", width, total);
+                            if channel == 0 {  // TODO
+                                let _ = writeln!(socket, "channel {}: PWM duty cycle manually set to {}/{}", channel, width, total);
+                            }
                         }
-                        Command::Pwm(PwmMode::Pid) => {
-                            pid_enabled = true;
-                            let _ = writeln!(socket, "PID enabled to control PWM");
+                        Command::Pwm { channel, mode: PwmMode::Pid } => {
+                            states[channel].pid_enabled = true;
+                            let _ = writeln!(socket, "channel {}: PID enabled to control PWM", channel);
                         }
-                        Command::Pid { parameter, value } => {
+                        Command::Pid { channel, parameter, value } => {
+                            let pid = &mut states[channel].pid;
                             use command_parser::PidParameter::*;
                             match parameter {
                                 Target =>
@@ -324,7 +348,7 @@ fn main() -> ! {
             }
             if socket.may_send() {
                 if let Some(channel) = session.is_report_pending() {
-                    report[channel].map(|(time, data)| {
+                    states[channel].report.map(|(time, data)| {
                         let _ = writeln!(socket, "t={} sens{}={:06X}", time, channel, data);
                     });
                     session.mark_report_sent(channel);

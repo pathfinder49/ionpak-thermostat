@@ -9,6 +9,7 @@ pub struct Parameters {
     pub integral_max: f32
 }
 
+#[derive(Clone)]
 pub struct Controller {
     parameters: Parameters,
     target: f32,
@@ -56,7 +57,7 @@ impl Controller {
         output
     }
 
-    pub fn get_target(&mut self) -> f32 {
+    pub fn get_target(&self) -> f32 {
         self.target
     }
 
