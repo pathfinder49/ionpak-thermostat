@@ -154,8 +154,7 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
                         preceded(
                             whitespace,
                             // `report mode <on | off>` - Switch repoting mode
-                            map(off_on,
-                                |reporting| Command::Reporting(reporting))
+                            map(off_on, Command::Reporting)
                         ),
                         // `report mode` - Show current reporting state
                         value(Command::Show(ShowCommand::Reporting), end)
@@ -235,16 +234,14 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
 
 /// `pid` | pid_parameter
 fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
-    preceded(
-        tag("pid"),
-        alt((
-            preceded(
-                whitespace,
-                pid_parameter
-            ),
-            value(Ok(Command::Show(ShowCommand::Pid)), end)
-        ))
-    )(input)
+    let (input, _) = tag("pid")(input)?;
+    alt((
+        preceded(
+            whitespace,
+            pid_parameter
+        ),
+        value(Ok(Command::Show(ShowCommand::Pid)), end)
+    ))(input)
 }
 
 fn command(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {

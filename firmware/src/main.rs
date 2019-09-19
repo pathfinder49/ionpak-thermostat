@@ -138,7 +138,7 @@ fn main() -> ! {
                 writeln!(stdout, "ADC id: {:04X}", id).unwrap();
                 break;
             }
-            Ok(id) => {
+            Ok(_id) => {
                 // This always happens on the first attempt. So retry silently
             }
         };
