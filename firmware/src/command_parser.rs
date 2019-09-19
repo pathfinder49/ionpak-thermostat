@@ -4,7 +4,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_a, tag, take_while1},
     character::{is_digit, complete::{char, one_of}},
-    combinator::{complete, map, value},
+    combinator::{complete, map, opt, value},
     sequence::{preceded, separated_pair},
     multi::{fold_many0, fold_many1},
     error::ErrorKind,
@@ -133,8 +133,8 @@ fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, Error>> {
 }
 
 fn float(input: &[u8]) -> IResult<&[u8], Result<f32, Error>> {
-    let (input, sign) = is_a("-")(input)?;
-    let negative = sign.len() > 0;
+    let (input, sign) = opt(is_a("-"))(input)?;
+    let negative = sign.is_some();
     let (input, digits) = take_while1(|c| is_digit(c) || c == '.' as u8)(input)?;
     let result = lexical::parse(digits)
         .map(|result: f32| if negative { -result } else { result })
