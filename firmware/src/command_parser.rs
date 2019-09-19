@@ -123,17 +123,22 @@ fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
     fold_many1(char(' '), (), |(), _| ())(input)
 }
 
-fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, lexical::Error>> {
+fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, Error>> {
     take_while1(is_digit)(input)
-        .map(|(input, digits)| (input, lexical::parse(digits)))
+        .map(|(input, digits)| {
+            let result = lexical::parse(digits)
+                .map_err(|e| e.into());
+            (input, result)
+        })
 }
 
-fn float(input: &[u8]) -> IResult<&[u8], Result<f32, lexical::Error>> {
+fn float(input: &[u8]) -> IResult<&[u8], Result<f32, Error>> {
     let (input, sign) = is_a("-")(input)?;
     let negative = sign.len() > 0;
     let (input, digits) = take_while1(|c| is_digit(c) || c == '.' as u8)(input)?;
     let result = lexical::parse(digits)
-        .map(|result: f32| if negative { -result } else { result });
+        .map(|result: f32| if negative { -result } else { result })
+        .map_err(|e| e.into());
     Ok((input, result))
 }
 
@@ -172,9 +177,7 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
 }
 
 /// `pwm <0-1> <width> <total>` - Set pwm duty cycle
-fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
-    let (input, channel) = channel(input)?;
-    let (input, _) = whitespace(input)?;
+fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<PwmMode, Error>> {
     let (input, width) = unsigned(input)?;
     let width = match width {
         Ok(width) => width,
@@ -186,20 +189,12 @@ fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
         Ok(total) => total,
         Err(e) => return Ok((input, Err(e.into()))),
     };
-    Ok((input, Ok(Command::Pwm {
-        channel,
-        mode: PwmMode::Manual { width, total },
-    })))
+    Ok((input, Ok(PwmMode::Manual { width, total })))
 }
 
 /// `pwm <0-1> pid` - Set PWM to be controlled by PID
-fn pwm_pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
-    let (input, channel) = channel(input)?;
-    let (input, _) = whitespace(input)?;
-    value(Ok(Command::Pwm {
-        channel,
-        mode: PwmMode::Pid,
-    }), tag("pid"))(input)
+fn pwm_pid(input: &[u8]) -> IResult<&[u8], Result<PwmMode, Error>> {
+    value(Ok(PwmMode::Pid), tag("pid"))(input)
 }
 
 fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
@@ -207,10 +202,18 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     alt((
         preceded(
             whitespace,
-            alt((
-                pwm_pid,
-                pwm_manual,
-            ))),
+            map(
+                separated_pair(
+                    channel,
+                    whitespace,
+                    alt((
+                        pwm_pid,
+                        pwm_manual,
+                    ))
+                ),
+                |(channel, mode)| mode.map(|mode| Command::Pwm { channel, mode })
+            )
+        ),
         value(Ok(Command::Show(ShowCommand::Pwm)), end)
     ))(input)
 }
@@ -232,8 +235,7 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, _) = whitespace(input)?;
     let (input, value) = float(input)?;
     let result = value
-        .map(|value| Command::Pid { channel, parameter, value })
-        .map_err(|e| e.into());
+        .map(|value| Command::Pid { channel, parameter, value });
     Ok((input, result))
 }
 

@@ -280,7 +280,7 @@ fn main() -> ! {
                         Command::Show(ShowCommand::Pid) => {
                             for (channel, state) in states.iter().enumerate() {
                                 let _ = writeln!(socket, "PID settings for channel {}", channel);
-                                let pid = &states[channel].pid;
+                                let pid = &state.pid;
                                 let _ = writeln!(socket, "- target={:.4}", pid.get_target());
                                 let p = pid.get_parameters();
                                 macro_rules! out {
@@ -299,7 +299,8 @@ fn main() -> ! {
                         }
                         Command::Show(ShowCommand::Pwm) => {
                             for (channel, state) in states.iter().enumerate() {
-                                let _ = writeln!(socket, "PWM {}: PID {}",
+                                let _ = writeln!(
+                                    socket, "PWM {}: PID {}",
                                     channel,
                                     if state.pid_enabled { "engaged" } else { "disengaged" }
                                 );
@@ -327,7 +328,10 @@ fn main() -> ! {
                             states[channel].pid_enabled = false;
                             board::set_timer_pwm(width, total);
                             if channel == 0 {  // TODO
-                                let _ = writeln!(socket, "channel {}: PWM duty cycle manually set to {}/{}", channel, width, total);
+                                let _ = writeln!(
+                                    socket, "channel {}: PWM duty cycle manually set to {}/{}",
+                                    channel, width, total
+                                );
                             }
                         }
                         Command::Pwm { channel, mode: PwmMode::Pid } => {
