@@ -12,7 +12,7 @@ use nom::{
 use lexical_core as lexical;
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Error {
     Parser(ErrorKind),
     Incomplete,
@@ -60,7 +60,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ShowCommand {
     Input,
     Reporting,
@@ -69,7 +69,7 @@ pub enum ShowCommand {
     PostFilter,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PidParameter {
     Target,
     KP,
@@ -81,7 +81,7 @@ pub enum PidParameter {
     IntegralMax,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PwmMode {
     Manual {
         width: u32,
@@ -90,7 +90,7 @@ pub enum PwmMode {
     Pid,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Quit,
     Show(ShowCommand),
@@ -292,5 +292,96 @@ impl Command {
             Err(e) =>
                 Err(e.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse_quit() {
+        let command = Command::parse(b"quit");
+        assert_eq!(command, Ok(Command::Quit));
+    }
+
+    #[test]
+    fn parse_report() {
+        let command = Command::parse(b"report");
+        assert_eq!(command, Ok(Command::Show(ShowCommand::Input)));
+    }
+
+    #[test]
+    fn parse_report_mode() {
+        let command = Command::parse(b"report mode");
+        assert_eq!(command, Ok(Command::Show(ShowCommand::Reporting)));
+    }
+
+    #[test]
+    fn parse_report_mode_on() {
+        let command = Command::parse(b"report mode on");
+        assert_eq!(command, Ok(Command::Reporting(true)));
+    }
+
+    #[test]
+    fn parse_report_mode_off() {
+        let command = Command::parse(b"report mode off");
+        assert_eq!(command, Ok(Command::Reporting(false)));
+    }
+
+    #[test]
+    fn parse_pwm_manual() {
+        let command = Command::parse(b"pwm 1 16383 65535");
+        assert_eq!(command, Ok(Command::Pwm {
+            channel: 1,
+            mode: PwmMode::Manual {
+                width: 16383,
+                total: 65535,
+            },
+        }));
+    }
+
+    #[test]
+    fn parse_pwm_pid() {
+        let command = Command::parse(b"pwm 0 pid");
+        assert_eq!(command, Ok(Command::Pwm {
+            channel: 0,
+            mode: PwmMode::Pid,
+        }));
+    }
+
+    #[test]
+    fn parse_pid() {
+        let command = Command::parse(b"pid");
+        assert_eq!(command, Ok(Command::Show(ShowCommand::Pid)));
+    }
+
+    #[test]
+    fn parse_pid_target() {
+        let command = Command::parse(b"pid 0 target 36.5");
+        assert_eq!(command, Ok(Command::Pid {
+            channel: 0,
+            parameter: PidParameter::Target,
+            value: 36.5,
+        }));
+    }
+
+    #[test]
+    fn parse_pid_integral_max() {
+        let command = Command::parse(b"pid 1 integral_max 2000");
+        assert_eq!(command, Ok(Command::Pid {
+            channel: 1,
+            parameter: PidParameter::IntegralMax,
+            value: 2000.0,
+        }));
+    }
+
+    #[test]
+    fn parse_postfilter_rate() {
+        let command = Command::parse(b"postfilter 0 rate 21");
+        assert_eq!(command, Ok(Command::PostFilter {
+            channel: 0,
+            rate: 21.0,
+        }));
     }
 }

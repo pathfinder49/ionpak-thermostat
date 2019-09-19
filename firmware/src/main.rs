@@ -1,6 +1,6 @@
 #![feature(const_fn, proc_macro_hygiene)]
 #![no_std]
-#![no_main]
+#![cfg_attr(not(test), no_main)]
 
 use cortex_m_rt::entry;
 use core::fmt::{self, Write};
@@ -24,6 +24,7 @@ macro_rules! println {
     ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
 
+#[cfg(not(test))]
 #[no_mangle] // https://github.com/rust-lang/rust/issues/{38281,51647}
 #[panic_handler]
 pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
@@ -97,6 +98,7 @@ struct ControlState {
     pid: pid::Controller,
 }
 
+#[cfg(not(test))]
 #[entry]
 fn main() -> ! {
     let mut stdout = hio::hstdout().unwrap();
