@@ -38,17 +38,16 @@ mod board;
 use self::board::{
     gpio::Gpio,
     systick::get_time,
-    pwm::*,
 };
 mod ethmac;
 mod command_parser;
-use command_parser::{Command, ShowCommand, PwmMode};
+use command_parser::{Command, ShowCommand, PwmSetup, PwmMode, PwmConfig};
 mod session;
 use self::session::{Session, SessionOutput};
 mod ad7172;
 mod pid;
 mod tec;
-use tec::TEC;
+use tec::{Tec, TecPin};
 
 pub struct UART0;
 
@@ -83,29 +82,6 @@ macro_rules! create_socket {
     )
 }
 
-fn init_pwm_tec() -> (
-    TEC<T2CCP0, T2CCP1, T3CCP0, T3CCP1>,
-    TEC<T4CCP0, T4CCP1, T5CCP0, T5CCP1>
-) {
-    let (t2ccp0, t2ccp1) = tm4c129x::TIMER2::split_16bit_ab();
-    let (t3ccp0, t3ccp1) = tm4c129x::TIMER3::split_16bit_ab();
-    let (t4ccp0, t4ccp1) = tm4c129x::TIMER4::split_16bit_ab();
-    let (t5ccp0, t5ccp1) = tm4c129x::TIMER5::split_16bit_ab();
-    let tec0 = TEC {
-        max_i_pos: t2ccp0,
-        max_i_neg: t2ccp1,
-        i_set: t3ccp0,
-        max_v: t3ccp1,
-    };
-    let tec1 = TEC {
-        max_i_pos: t4ccp0,
-        max_i_neg: t4ccp1,
-        i_set: t5ccp0,
-        max_v: t5ccp1,
-    };
-    (tec0, tec1)
-}
-
 const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     kp: 1.0,
     ki: 1.0,
@@ -116,9 +92,14 @@ const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     integral_max: 0xffff as f32,
 };
 
+const PWM_PID_WIDTH: u16 = 0xffff;
+
+// TODO: maybe rename to `TECS`?
+/// Number of TEC channels with four PWM channels each
 pub const CHANNELS: usize = 2;
 
-/// State per channel
+// TODO: maybe rename to `TecState`?
+/// State per TEC channel
 #[derive(Clone)]
 struct ControlState {
     /// Report data (time, data)
@@ -131,20 +112,21 @@ struct ControlState {
 #[entry]
 fn main() -> ! {
     let mut stdout = hio::hstdout().unwrap();
-    writeln!(stdout, "ionpak boot").unwrap();
+    writeln!(stdout, "tecpak boot").unwrap();
     board::init();
-    let (mut tec0, mut tec1) = init_pwm_tec();
     writeln!(stdout, "board initialized").unwrap();
+    let mut tec0 = Tec::tec0();
+    let mut tec1 = Tec::tec1();
 
     println!(r#"
   _                         _
- (_)                       | |
-  _  ___  _ __  _ __   __ _| |
- | |/ _ \| '_ \| '_ \ / _` | |/ /
- | | (_) | | | | |_) | (_| |   <
- |_|\___/|_| |_| .__/ \__,_|_|\_\
+ | |                       | |
+/  _/___  _ __  _ __   __ _| |
+ | |/ _ \ /'__\| '_ \ / _` | |/ /
+ | | (/_/| |___| |_) | (_| |   <
+ |_|\___\ \___/| .__/ \__,_|_|\_\
                | |
-               |_|
+               |_|             v1
 "#);
     // CSn
     let pb4 = board::gpio::PB4.into_output();
@@ -267,8 +249,8 @@ fn main() -> ! {
                 if state.pid_enabled {
                     let width = state.pid.update(data as f32) as u16;
                     match channel {
-                        0 => tec0.i_set.set(width, 0xffff),
-                        1 => tec1.i_set.set(width, 0xffff),
+                        0 => tec0.set(TecPin::ISet, width, PWM_PID_WIDTH),
+                        1 => tec1.set(TecPin::ISet, width, PWM_PID_WIDTH),
                         _ => unreachable!(),
                     }
                 }
@@ -332,6 +314,7 @@ fn main() -> ! {
                             }
                         }
                         Command::Show(ShowCommand::Pwm) => {
+                            // TODO: show all pwms, show actual state
                             for (channel, state) in states.iter().enumerate() {
                                 let _ = writeln!(
                                     socket, "PWM {}: PID {}",
@@ -358,21 +341,41 @@ fn main() -> ! {
                                 }
                             }
                         }
-                        Command::Pwm { channel, mode: PwmMode::Manual { width, total }} => {
+                        Command::Pwm { channel, setup: PwmSetup::ISet(PwmMode::Pid) } => {
+                            states[channel].pid_enabled = true;
+                            let _ = writeln!(socket, "channel {}: PID enabled to control PWM", channel);
+                        }
+                        Command::Pwm { channel, setup: PwmSetup::ISet(PwmMode::Manual(config))} => {
                             states[channel].pid_enabled = false;
+                            let PwmConfig { width, total } = config;
                             match channel {
-                                0 => tec0.i_set.set(width, total),
-                                1 => tec1.i_set.set(width, total),
+                                0 => tec0.set(TecPin::ISet, width, total),
+                                1 => tec1.set(TecPin::ISet, width, total),
                                 _ => unreachable!(),
                             }
                             let _ = writeln!(
                                 socket, "channel {}: PWM duty cycle manually set to {}/{}",
-                                channel, width, total
+                                channel, config.width, config.total
                             );
                         }
-                        Command::Pwm { channel, mode: PwmMode::Pid } => {
-                            states[channel].pid_enabled = true;
-                            let _ = writeln!(socket, "channel {}: PID enabled to control PWM", channel);
+                        Command::Pwm { channel, setup } => {
+                            let (pin, config) = match setup {
+                                PwmSetup::ISet(_) =>
+                                    // Handled above
+                                    unreachable!(),
+                                PwmSetup::MaxIPos(config) =>
+                                    (TecPin::MaxIPos, config),
+                                PwmSetup::MaxINeg(config) =>
+                                    (TecPin::MaxINeg, config),
+                                PwmSetup::MaxV(config) =>
+                                    (TecPin::MaxV, config),
+                            };
+                            let PwmConfig { width, total } = config;
+                            match channel {
+                                0 => tec0.set(pin, width, total),
+                                1 => tec1.set(pin, width, total),
+                                _ => unreachable!(),
+                            }
                         }
                         Command::Pid { channel, parameter, value } => {
                             let pid = &mut states[channel].pid;

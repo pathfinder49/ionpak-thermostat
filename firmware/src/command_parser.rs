@@ -82,12 +82,23 @@ pub enum PidParameter {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct PwmConfig {
+    pub width: u16,
+    pub total: u16,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum PwmMode {
-    Manual {
-        width: u16,
-        total: u16,
-    },
+    Manual(PwmConfig),
     Pid,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PwmSetup {
+    ISet(PwmMode),
+    MaxIPos(PwmConfig),
+    MaxINeg(PwmConfig),
+    MaxV(PwmConfig),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -97,7 +108,7 @@ pub enum Command {
     Reporting(bool),
     Pwm {
         channel: usize,
-        mode: PwmMode,
+        setup: PwmSetup,
     },
     Pid {
         channel: usize,
@@ -176,8 +187,8 @@ fn report(input: &[u8]) -> IResult<&[u8], Command> {
     )(input)
 }
 
-/// `pwm <0-1> <width> <total>` - Set pwm duty cycle
-fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<PwmMode, Error>> {
+/// `pwm ... <width> <total>` - Set pwm duty cycle
+fn pwm_config(input: &[u8]) -> IResult<&[u8], Result<PwmConfig, Error>> {
     let (input, width) = unsigned(input)?;
     let width = match width {
         Ok(width) => width,
@@ -189,12 +200,50 @@ fn pwm_manual(input: &[u8]) -> IResult<&[u8], Result<PwmMode, Error>> {
         Ok(total) => total,
         Err(e) => return Ok((input, Err(e.into()))),
     };
-    Ok((input, Ok(PwmMode::Manual { width, total })))
+    Ok((input, Ok(PwmConfig { width, total })))
+}
+
+fn pwm_setup(input: &[u8]) -> IResult<&[u8], Result<PwmSetup, Error>> {
+    alt((
+        map(
+            preceded(
+                tag("max_i_pos"),
+                preceded(
+                    whitespace,
+                    pwm_config
+                )
+            ),
+            |result| result.map(PwmSetup::MaxIPos)
+        ),
+        map(
+            preceded(
+                tag("max_i_neg"),
+                preceded(
+                    whitespace,
+                    pwm_config
+                )
+            ),
+            |result| result.map(PwmSetup::MaxINeg)
+        ),
+        map(
+            preceded(
+                tag("max_v"),
+                preceded(
+                    whitespace,
+                    pwm_config
+                )
+            ),
+            |result| result.map(PwmSetup::MaxV)
+        ),
+        map(pwm_config, |result| result.map(|config| {
+            PwmSetup::ISet(PwmMode::Manual(config))
+        }))
+    ))(input)
 }
 
 /// `pwm <0-1> pid` - Set PWM to be controlled by PID
-fn pwm_pid(input: &[u8]) -> IResult<&[u8], Result<PwmMode, Error>> {
-    value(Ok(PwmMode::Pid), tag("pid"))(input)
+fn pwm_pid(input: &[u8]) -> IResult<&[u8], Result<PwmSetup, Error>> {
+    value(Ok(PwmSetup::ISet(PwmMode::Pid)), tag("pid"))(input)
 }
 
 fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
@@ -208,10 +257,10 @@ fn pwm(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
                     whitespace,
                     alt((
                         pwm_pid,
-                        pwm_manual,
+                        pwm_setup
                     ))
                 ),
-                |(channel, mode)| mode.map(|mode| Command::Pwm { channel, mode })
+                |(channel, setup)| setup.map(|setup| Command::Pwm { channel, setup })
             )
         ),
         value(Ok(Command::Show(ShowCommand::Pwm)), end)
@@ -334,10 +383,10 @@ mod test {
         let command = Command::parse(b"pwm 1 16383 65535");
         assert_eq!(command, Ok(Command::Pwm {
             channel: 1,
-            mode: PwmMode::Manual {
+            setup: PwmSetup::ISet(PwmMode::Manual(PwmConfig {
                 width: 16383,
                 total: 65535,
-            },
+            })),
         }));
     }
 
@@ -346,7 +395,43 @@ mod test {
         let command = Command::parse(b"pwm 0 pid");
         assert_eq!(command, Ok(Command::Pwm {
             channel: 0,
-            mode: PwmMode::Pid,
+            setup: PwmSetup::ISet(PwmMode::Pid),
+        }));
+    }
+
+    #[test]
+    fn parse_pwm_max_i_pos() {
+        let command = Command::parse(b"pwm 0 max_i_pos 7 13");
+        assert_eq!(command, Ok(Command::Pwm {
+            channel: 0,
+            setup: PwmSetup::MaxIPos(PwmConfig {
+                width: 7,
+                total: 13,
+            }),
+        }));
+    }
+
+    #[test]
+    fn parse_pwm_max_i_neg() {
+        let command = Command::parse(b"pwm 0 max_i_neg 128 65535");
+        assert_eq!(command, Ok(Command::Pwm {
+            channel: 0,
+            setup: PwmSetup::MaxINeg(PwmConfig {
+                width: 128,
+                total: 65535,
+            }),
+        }));
+    }
+
+    #[test]
+    fn parse_pwm_max_v() {
+        let command = Command::parse(b"pwm 0 max_v 32768 65535");
+        assert_eq!(command, Ok(Command::Pwm {
+            channel: 0,
+            setup: PwmSetup::MaxV(PwmConfig {
+                width: 32768,
+                total: 65535,
+            }),
         }));
     }
 

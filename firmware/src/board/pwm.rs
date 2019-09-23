@@ -14,7 +14,7 @@ pub struct T5CCP1;
 pub trait PwmPeripheral {
     type ChannelA: PwmChannel;
     type ChannelB: PwmChannel;
-    fn split_16bit_ab() -> (Self::ChannelA, Self::ChannelB);
+    fn split() -> (Self::ChannelA, Self::ChannelB);
 }
 
 macro_rules! pwm_peripheral {
@@ -22,7 +22,7 @@ macro_rules! pwm_peripheral {
         impl PwmPeripheral for $TIMER {
             type ChannelA = $A;
             type ChannelB = $B;
-            fn split_16bit_ab() -> (Self::ChannelA, Self::ChannelB) {
+            fn split() -> (Self::ChannelA, Self::ChannelB) {
                 let regs = unsafe { &*Self::ptr() };
                 regs.cfg.write(|w| unsafe { w.bits(4) });
 
