@@ -314,13 +314,20 @@ fn main() -> ! {
                             }
                         }
                         Command::Show(ShowCommand::Pwm) => {
-                            // TODO: show all pwms, show actual state
                             for (channel, state) in states.iter().enumerate() {
                                 let _ = writeln!(
                                     socket, "PWM {}: PID {}",
                                     channel,
                                     if state.pid_enabled { "engaged" } else { "disengaged" }
                                 );
+                                for pin in TecPin::VALID_VALUES {
+                                    let (width, total) = match channel {
+                                        0 => tec0.get(*pin),
+                                        1 => tec1.get(*pin),
+                                        _ => unreachable!(),
+                                    };
+                                    let _ = writeln!(socket, "- {}={}/{}", pin, width, total);
+                                }
                             }
                         }
                         Command::Show(ShowCommand::PostFilter) => {

@@ -44,6 +44,7 @@ pwm_peripheral!(TIMER5, T5CCP0, T5CCP1);
 
 pub trait PwmChannel {
     fn configure(&mut self);
+    fn get(&mut self) -> (u16, u16);
     fn set(&mut self, width: u16, total: u16);
 }
 
@@ -70,6 +71,12 @@ macro_rules! pwm_channel_a {
                     w
                         .taen().bit(true)
                 });
+            }
+
+            fn get(&mut self) -> (u16, u16) {
+                let timer = unsafe { &*tm4c129x::$TIMER::ptr() };
+                (timer.tamatchr.read().bits() as u16,
+                 timer.tailr.read().bits() as u16)
             }
 
             fn set(&mut self, width: u16, total: u16) {
@@ -104,6 +111,12 @@ macro_rules! pwm_channel_b {
                     w
                         .tben().bit(true)
                 });
+            }
+
+            fn get(&mut self) -> (u16, u16) {
+                let timer = unsafe { &*tm4c129x::$TIMER::ptr() };
+                (timer.tbmatchr.read().bits() as u16,
+                 timer.tbilr.read().bits() as u16)
             }
 
             fn set(&mut self, width: u16, total: u16) {

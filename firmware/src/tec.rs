@@ -1,3 +1,4 @@
+use core::fmt;
 use crate::board::pwm::{self, PwmChannel, PwmPeripheral};
 
 #[derive(Clone, Copy, Debug)]
@@ -6,6 +7,30 @@ pub enum TecPin {
     MaxIPos,
     MaxINeg,
     MaxV,
+}
+
+impl TecPin {
+    pub const VALID_VALUES: &'static [TecPin] = &[
+        TecPin::ISet,
+        TecPin::MaxIPos,
+        TecPin::MaxINeg,
+        TecPin::MaxV,
+    ];
+}
+
+impl fmt::Display for TecPin {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            TecPin::ISet =>
+                "i_set".fmt(fmt),
+            TecPin::MaxIPos =>
+                "max_i_pos".fmt(fmt),
+            TecPin::MaxINeg =>
+                "max_i_neg".fmt(fmt),
+            TecPin::MaxV =>
+                "max_v".fmt(fmt),
+        }
+    }
 }
 
 /// Thermo-Electric Cooling device controlled through four PWM
@@ -45,6 +70,19 @@ impl Tec<pwm::T4CCP0, pwm::T4CCP1, pwm::T5CCP0, pwm::T5CCP1> {
 
 
 impl<MaxIPos: PwmChannel, MaxINeg: PwmChannel, ISet: PwmChannel, MaxV: PwmChannel> Tec<MaxIPos, MaxINeg, ISet, MaxV> {
+    pub fn get(&mut self, pin: TecPin) -> (u16, u16) {
+        match pin {
+            TecPin::MaxIPos =>
+                self.max_i_pos.get(),
+            TecPin::MaxINeg =>
+                self.max_i_neg.get(),
+            TecPin::ISet =>
+                self.i_set.get(),
+            TecPin::MaxV =>
+                self.max_v.get(),
+        }
+    }
+
     pub fn set(&mut self, pin: TecPin, width: u16, total: u16) {
         match pin {
             TecPin::MaxIPos =>
