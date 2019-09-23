@@ -301,7 +301,7 @@ fn main() -> ! {
                                 let p = pid.get_parameters();
                                 macro_rules! out {
                                     ($p: tt) => {
-                                        let _ = writeln!(socket, "* {}={:.4}", stringify!($p), p.$p);
+                                        let _ = writeln!(socket, "- {}={:.4}", stringify!($p), p.$p);
                                     };
                                 }
                                 out!(kp);
@@ -383,6 +383,10 @@ fn main() -> ! {
                                 1 => tec1.set(pin, width, total),
                                 _ => unreachable!(),
                             }
+                            let _ = writeln!(
+                                socket, "channel {}: PWM {} reconfigured to {}/{}",
+                                channel, pin, width, total
+                            );
                         }
                         Command::Pid { channel, parameter, value } => {
                             let pid = &mut states[channel].pid;
