@@ -44,27 +44,17 @@ pub struct Tec<MaxIPos: PwmChannel, MaxINeg: PwmChannel, ISet: PwmChannel, MaxV:
 
 impl Tec<pwm::T2CCP0, pwm::T2CCP1, pwm::T3CCP0, pwm::T3CCP1> {
     pub fn tec0() -> Self {
-        let (t2ccp0, t2ccp1) = tm4c129x::TIMER2::split();
-        let (t3ccp0, t3ccp1) = tm4c129x::TIMER3::split();
-        Tec {
-            max_i_pos: t2ccp0,
-            max_i_neg: t2ccp1,
-            i_set: t3ccp0,
-            max_v: t3ccp1,
-        }
+        let (max_i_pos, max_i_neg) = tm4c129x::TIMER2::split();
+        let (i_set, max_v) = tm4c129x::TIMER3::split();
+        Tec { max_i_pos, max_i_neg, i_set, max_v }
     }
 }
 
 impl Tec<pwm::T4CCP0, pwm::T4CCP1, pwm::T5CCP0, pwm::T5CCP1> {
     pub fn tec1() -> Self {
-        let (t4ccp0, t4ccp1) = tm4c129x::TIMER4::split();
-        let (t5ccp0, t5ccp1) = tm4c129x::TIMER5::split();
-        Tec {
-            max_i_pos: t4ccp0,
-            max_i_neg: t4ccp1,
-            i_set: t5ccp0,
-            max_v: t5ccp1,
-        }
+        let (max_i_pos, max_i_neg) = tm4c129x::TIMER4::split();
+        let (i_set, max_v) = tm4c129x::TIMER5::split();
+        Tec { max_i_pos, max_i_neg, i_set, max_v }
     }
 }
 
