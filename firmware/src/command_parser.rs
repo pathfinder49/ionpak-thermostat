@@ -84,8 +84,8 @@ pub enum PidParameter {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PwmMode {
     Manual {
-        width: u32,
-        total: u32,
+        width: u16,
+        total: u16,
     },
     Pid,
 }
@@ -123,7 +123,7 @@ fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
     fold_many1(char(' '), (), |(), _| ())(input)
 }
 
-fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u32, Error>> {
+fn unsigned(input: &[u8]) -> IResult<&[u8], Result<u16, Error>> {
     take_while1(is_digit)(input)
         .map(|(input, digits)| {
             let result = lexical::parse(digits)

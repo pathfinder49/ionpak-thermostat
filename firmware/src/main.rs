@@ -35,7 +35,11 @@ pub fn panic_fmt(info: &core::panic::PanicInfo) -> ! {
 }
 
 mod board;
-use self::board::{gpio::Gpio, systick::get_time};
+use self::board::{
+    gpio::Gpio,
+    systick::get_time,
+    pwm::*,
+};
 mod ethmac;
 mod command_parser;
 use command_parser::{Command, ShowCommand, PwmMode};
@@ -43,6 +47,8 @@ mod session;
 use self::session::{Session, SessionOutput};
 mod ad7172;
 mod pid;
+mod tec;
+use tec::TEC;
 
 pub struct UART0;
 
@@ -77,6 +83,29 @@ macro_rules! create_socket {
     )
 }
 
+fn init_pwm_tec() -> (
+    TEC<T2CCP0, T2CCP1, T3CCP0, T3CCP1>,
+    TEC<T4CCP0, T4CCP1, T5CCP0, T5CCP1>
+) {
+    let (t2ccp0, t2ccp1) = tm4c129x::TIMER2::split_16bit_ab();
+    let (t3ccp0, t3ccp1) = tm4c129x::TIMER3::split_16bit_ab();
+    let (t4ccp0, t4ccp1) = tm4c129x::TIMER4::split_16bit_ab();
+    let (t5ccp0, t5ccp1) = tm4c129x::TIMER5::split_16bit_ab();
+    let tec0 = TEC {
+        max_i_pos: t2ccp0,
+        max_i_neg: t2ccp1,
+        i_set: t3ccp0,
+        max_v: t3ccp1,
+    };
+    let tec1 = TEC {
+        max_i_pos: t4ccp0,
+        max_i_neg: t4ccp1,
+        i_set: t5ccp0,
+        max_v: t5ccp1,
+    };
+    (tec0, tec1)
+}
+
 const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     kp: 1.0,
     ki: 1.0,
@@ -104,6 +133,7 @@ fn main() -> ! {
     let mut stdout = hio::hstdout().unwrap();
     writeln!(stdout, "ionpak boot").unwrap();
     board::init();
+    let (mut tec0, mut tec1) = init_pwm_tec();
     writeln!(stdout, "board initialized").unwrap();
 
     println!(r#"
@@ -235,9 +265,11 @@ fn main() -> ! {
                 let state = &mut states[usize::from(channel)];
 
                 if state.pid_enabled {
-                    let width = state.pid.update(data as f32) as u32;
-                    if channel == 0 { // TODO
-                        board::set_timer_pwm(width as u32, 0xffff);
+                    let width = state.pid.update(data as f32) as u16;
+                    match channel {
+                        0 => tec0.i_set.set(width, 0xffff),
+                        1 => tec1.i_set.set(width, 0xffff),
+                        _ => unreachable!(),
                     }
                 }
 
@@ -328,13 +360,15 @@ fn main() -> ! {
                         }
                         Command::Pwm { channel, mode: PwmMode::Manual { width, total }} => {
                             states[channel].pid_enabled = false;
-                            board::set_timer_pwm(width, total);
-                            if channel == 0 {  // TODO
-                                let _ = writeln!(
-                                    socket, "channel {}: PWM duty cycle manually set to {}/{}",
-                                    channel, width, total
-                                );
+                            match channel {
+                                0 => tec0.i_set.set(width, total),
+                                1 => tec1.i_set.set(width, total),
+                                _ => unreachable!(),
                             }
+                            let _ = writeln!(
+                                socket, "channel {}: PWM duty cycle manually set to {}/{}",
+                                channel, width, total
+                            );
                         }
                         Command::Pwm { channel, mode: PwmMode::Pid } => {
                             states[channel].pid_enabled = true;

@@ -4,6 +4,7 @@ use tm4c129x;
 pub mod gpio;
 pub mod softspi;
 pub mod systick;
+pub mod pwm;
 
 
 const UART_DIV: u32 = (((/*sysclk*/120_000_000 * 8) / /*baud*/115200) + 1) / 2;
@@ -130,64 +131,8 @@ pub fn init() {
         }
         while !timers_ready(sysctl) {}
 
-        // Manual: 13.4.5 PWM Mode
-        macro_rules! setup_timer_pwm {
-            ($T: tt) => (
-                let timer = unsafe { &*tm4c129x::$T::ptr() };
-                timer.cfg.write(|w| unsafe { w.bits(4) });
-                timer.tamr.modify(|_, w| unsafe {
-                    w
-                        .taams().bit(true)
-                        .tacmr().bit(false)
-                        .tamr().bits(2)
-                });
-                timer.tbmr.modify(|_, w| unsafe {
-                    w
-                        .tbams().bit(true)
-                        .tbcmr().bit(false)
-                        .tbmr().bits(2)
-                });
-                timer.ctl.modify(|_, w| {
-                    w
-                        .tapwml().bit(false)
-                        .tbpwml().bit(false)
-                });
-                // no prescaler
-                // no interrupts
-                timer.tailr.write(|w| unsafe { w.bits(0xFFFF) });
-                timer.tbilr.write(|w| unsafe { w.bits(0xFFFF) });
-                timer.tamatchr.write(|w| unsafe { w.bits(0x8000) });
-                timer.tbmatchr.write(|w| unsafe { w.bits(0x8000) });
-                timer.ctl.modify(|_, w| {
-                    w
-                        .taen().bit(true)
-                        .tben().bit(true)
-                });
-            )
-        }
-        setup_timer_pwm!(TIMER2);
-        setup_timer_pwm!(TIMER3);
-        setup_timer_pwm!(TIMER4);
-        setup_timer_pwm!(TIMER5);
-
         systick::init(cs);
     });
-}
-
-pub fn set_timer_pwm(matchr: u32, ilr: u32) {
-    macro_rules! set_timer_pwm {
-        ($T: tt) => (
-            let timer = unsafe { &*tm4c129x::$T::ptr() };
-            timer.tamatchr.write(|w| unsafe { w.bits(matchr) });
-            timer.tbmatchr.write(|w| unsafe { w.bits(matchr) });
-            timer.tailr.write(|w| unsafe { w.bits(ilr) });
-            timer.tbilr.write(|w| unsafe { w.bits(ilr) });
-        )
-    }
-    set_timer_pwm!(TIMER2);
-    set_timer_pwm!(TIMER3);
-    set_timer_pwm!(TIMER4);
-    set_timer_pwm!(TIMER5);
 }
 
 pub fn get_mac_address() -> [u8; 6] {
