@@ -1,5 +1,5 @@
 [package]
-name = "ionpak-firmware"
+name = "firmware"
 version = "1.0.0"
 authors = ["whitequark <whitequark@whitequark.org>"]
 edition = "2018"
@@ -29,7 +29,7 @@ features = ["proto-ipv4", "socket-tcp"]
 default-features = false
 
 [dependencies.compiler_builtins]
-git = "https://github.com/rust-lang-nursery/compiler-builtins"
+version = "0.1"
 default-features = false
 features = ["mem", "no-lang-items", "c"]
 
