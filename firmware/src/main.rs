@@ -263,7 +263,7 @@ fn main() -> ! {
                 let temperature = state.sh.get_temperature(voltage);
 
                 if state.pid_enabled {
-                    let width = state.pid.update(data as f32) as u16;
+                    let width = state.pid.update(temperature) as u16;
                     match channel {
                         0 => tec0.set(TecPin::ISet, width, PWM_PID_WIDTH),
                         1 => tec1.set(TecPin::ISet, width, PWM_PID_WIDTH),
