@@ -53,7 +53,9 @@ let
     ];
     "CC_${target}" = "${gcc}/bin/armv7l-unknown-linux-gnueabihf-gcc";
     RUST_COMPILER_RT_ROOT = "${rustcSrc}/src/llvm-project/compiler-rt";
-    doCheck = false;
+    checkPhase = ''
+      cargo test --target=${hostPlatform.config}
+    '';
   };
 in {
   inherit pkgs rustPlatform rustcSrc gcc firmware;
