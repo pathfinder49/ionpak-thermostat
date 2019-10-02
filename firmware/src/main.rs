@@ -115,7 +115,7 @@ pub const CHANNELS: usize = 2;
 #[derive(Clone)]
 struct ControlState {
     /// Report data (time, data, temperature)
-    report: Option<(u64, i32, f32)>,
+    report: Option<(u64, i32, f32, Option<u16>)>,
     pid_enabled: bool,
     pid: pid::Controller,
     sh: sh::Parameters,
@@ -262,16 +262,19 @@ fn main() -> ! {
                 let voltage = VCC * (data as f32) / (0x7FFFFF as f32);
                 let temperature = state.sh.get_temperature(voltage);
 
-                if state.pid_enabled {
+                let pwm_width = if state.pid_enabled {
                     let width = state.pid.update(temperature) as u16;
                     match channel {
                         0 => tec0.set(TecPin::ISet, width, PWM_PID_WIDTH),
                         1 => tec1.set(TecPin::ISet, width, PWM_PID_WIDTH),
                         _ => unreachable!(),
                     }
-                }
+                    Some(width)
+                } else {
+                    None
+                };
 
-                state.report = Some((now, data, temperature));
+                state.report = Some((now, data, temperature, pwm_width));
                 for (session, _) in sessions_handles.iter_mut() {
                     session.set_report_pending(channel.into());
                 }
@@ -304,11 +307,18 @@ fn main() -> ! {
                         }
                         Command::Show(ShowCommand::Input) => {
                             for (channel, state) in states.iter().enumerate() {
-                                state.report.map(|(time, data, temp)| {
-                                    let _ = writeln!(
+                                state.report.map(|(time, data, temp, pwm_width)| {
+                                    let _ = write!(
                                         socket, "t={} temp{}={} raw{}=0x{:06X}",
                                         time, channel, temp, channel, data
                                     );
+                                    pwm_width.map(|width| {
+                                        let _ = write!(
+                                            socket, " pwm{}=0x{:04X}",
+                                            channel, width
+                                        );
+                                    });
+                                    let _ = writeln!(socket, "");
                                 });
                             }
                         }
@@ -481,11 +491,18 @@ fn main() -> ! {
             }
             if socket.may_send() {
                 if let Some(channel) = session.is_report_pending() {
-                    states[channel].report.map(|(time, data, temp)| {
-                        let _ = writeln!(
+                    states[channel].report.map(|(time, data, temp, pwm_width)| {
+                        let _ = write!(
                             socket, "t={} temp{}={} raw{}=0x{:06X}",
                             time, channel, temp, channel, data
                         );
+                        pwm_width.map(|width| {
+                            let _ = write!(
+                                socket, " pwm{}=0x{:04X}",
+                                channel, width
+                            );
+                        });
+                        let _ = writeln!(socket, "");
                     });
                     session.mark_report_sent(channel);
                 }
