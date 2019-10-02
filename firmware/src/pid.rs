@@ -79,3 +79,44 @@ impl Controller {
         self.last_input = None;
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const PARAMETERS: Parameters = Parameters {
+        kp: 0.055,
+        ki: 0.005,
+        kd: 0.04,
+        output_min: -10.0,
+        output_max: 10.0,
+        integral_min: -100.0,
+        integral_max: 100.0,
+    };
+
+    #[test]
+    fn test_controller() {
+        const DEFAULT: f32 = 0.0;
+        const TARGET: f32 = 1234.56;
+        const ERROR: f32 = 0.01;
+        const DELAY: usize = 10;
+
+        let mut pid = Controller::new(PARAMETERS.clone());
+        pid.set_target(TARGET);
+
+        let mut values = [DEFAULT; DELAY];
+        let mut t = 0;
+        let mut total_t = 0;
+        let target = (TARGET - ERROR)..=(TARGET + ERROR);
+        while !values.iter().all(|value| target.contains(value)) {
+            let next_t = (t + 1) % DELAY;
+            // Feed the oldest temperature
+            let output = pid.update(values[next_t]);
+            // Overwrite oldest with previous temperature + output
+            values[next_t] = values[t] + output;
+            t = next_t;
+            total_t += 1;
+        }
+        dbg!(values[t], total_t);
+    }
+}
