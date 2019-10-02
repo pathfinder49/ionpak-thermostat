@@ -86,14 +86,17 @@ macro_rules! create_socket {
 
 const VCC: f32 = 3.3;
 
+const PWM_PID_WIDTH: u16 = 0xffff;
+const PWM_MAX: f32 = PWM_PID_WIDTH as f32;
+
 const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
-    kp: 1.0,
-    ki: 1.0,
-    kd: 1.0,
+    kp: 0.5 * PWM_MAX,
+    ki: 0.05 * PWM_MAX,
+    kd: 0.45 * PWM_MAX,
     output_min: 0.0,
-    output_max: 0xffff as f32,
+    output_max: PWM_MAX,
     integral_min: 0.0,
-    integral_max: 0xffff as f32,
+    integral_max: PWM_MAX,
 };
 
 const DEFAULT_SH_PARAMETERS: sh::Parameters = sh::Parameters {
@@ -102,8 +105,6 @@ const DEFAULT_SH_PARAMETERS: sh::Parameters = sh::Parameters {
     c: 0.000_000_099,
     parallel_r: 5_110.0,  // Ohm (TODO: verify)
 };
-
-const PWM_PID_WIDTH: u16 = 0xffff;
 
 // TODO: maybe rename to `TECS`?
 /// Number of TEC channels with four PWM channels each
