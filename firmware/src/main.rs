@@ -296,10 +296,10 @@ fn main() -> ! {
                         Command::Quit =>
                             socket.close(),
                         Command::Reporting(reporting) => {
-                            let _ = writeln!(socket, "Report mode set to {}", if reporting { "on" } else { "off" });
+                            let _ = writeln!(socket, "report={}", if reporting { "on" } else { "off" });
                         }
                         Command::Show(ShowCommand::Reporting) => {
-                            let _ = writeln!(socket, "Report mode: {}", if session.reporting() { "on" } else { "off" });
+                            let _ = writeln!(socket, "report={}", if session.reporting() { "on" } else { "off" });
                         }
                         Command::Show(ShowCommand::Input) => {
                             for (channel, state) in states.iter().enumerate() {
@@ -329,12 +329,13 @@ fn main() -> ! {
                                 out!(output_max);
                                 out!(integral_min);
                                 out!(integral_max);
+                                let _ = writeln!(socket, "");
                             }
                         }
                         Command::Show(ShowCommand::Pwm) => {
                             for (channel, state) in states.iter().enumerate() {
                                 let _ = writeln!(
-                                    socket, "PWM {}: PID {}",
+                                    socket, "channel {}: PID={}",
                                     channel,
                                     if state.pid_enabled { "engaged" } else { "disengaged" }
                                 );
@@ -346,18 +347,20 @@ fn main() -> ! {
                                     };
                                     let _ = writeln!(socket, "- {}={}/{}", pin, width, total);
                                 }
+                                let _ = writeln!(socket, "");
                             }
                         }
                         Command::Show(ShowCommand::SteinhartHart) => {
                             for (channel, state) in states.iter().enumerate() {
                                 let _ = writeln!(
-                                    socket, "Channel {} parameters for the Steinhart-Hart equation",
+                                    socket, "channel {}: Steinhart-Hart equation parameters",
                                     channel,
                                 );
                                 let _ = writeln!(socket, "- a={}", state.sh.a);
                                 let _ = writeln!(socket, "- b={}", state.sh.b);
                                 let _ = writeln!(socket, "- c={}", state.sh.c);
                                 let _ = writeln!(socket, "- parallel_r={}", state.sh.parallel_r);
+                                let _ = writeln!(socket, "");
                             }
                         }
                         Command::Show(ShowCommand::PostFilter) => {
@@ -450,6 +453,7 @@ fn main() -> ! {
                                 C => sh.c = value,
                                 ParallelR => sh.parallel_r = value,
                             }
+                            let _ = writeln!(socket, "Steinhart-Hart equation parameter updated");
                         }
                         Command::PostFilter { channel, rate } => {
                             let filter = ad7172::PostFilter::closest(rate);
