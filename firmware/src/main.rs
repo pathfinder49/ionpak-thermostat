@@ -442,6 +442,7 @@ fn main() -> ! {
                                 IntegralMax =>
                                     pid.update_parameters(|parameters| parameters.integral_max = value),
                             }
+                            pid.reset();
                             let _ = writeln!(socket, "PID parameter updated");
                         }
                         Command::SteinhartHart { channel, parameter, value } => {
