@@ -48,6 +48,8 @@ mod ad7172;
 mod pid;
 mod tec;
 use tec::{Tec, TecPin};
+mod steinhart_hart;
+use steinhart_hart as sh;
 
 pub struct UART0;
 
@@ -82,6 +84,8 @@ macro_rules! create_socket {
     )
 }
 
+const VCC: f32 = 3.3;
+
 const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     kp: 1.0,
     ki: 1.0,
@@ -90,6 +94,13 @@ const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
     output_max: 0xffff as f32,
     integral_min: 0.0,
     integral_max: 0xffff as f32,
+};
+
+const DEFAULT_SH_PARAMETERS: sh::Parameters = sh::Parameters {
+    a: 0.01,
+    b: 0.01,
+    c: 0.01,
+    parallel_r: 100.0,  // TODO
 };
 
 const PWM_PID_WIDTH: u16 = 0xffff;
@@ -106,6 +117,7 @@ struct ControlState {
     report: Option<(u64, u32)>,
     pid_enabled: bool,
     pid: pid::Controller,
+    sh: sh::Parameters,
 }
 
 #[cfg(not(test))]
@@ -183,6 +195,7 @@ fn main() -> ! {
         // Start with disengaged PID to let user setup parameters first
         pid_enabled: false,
         pid: pid::Controller::new(DEFAULT_PID_PARAMETERS.clone()),
+        sh: DEFAULT_SH_PARAMETERS.clone(),
     };
     let mut states = [init_state.clone(), init_state.clone()];
 
@@ -330,6 +343,18 @@ fn main() -> ! {
                                 }
                             }
                         }
+                        Command::Show(ShowCommand::SteinhartHart) => {
+                            for (channel, state) in states.iter().enumerate() {
+                                let _ = writeln!(
+                                    socket, "Channel {} parameters for the Steinhart-Hart equation",
+                                    channel,
+                                );
+                                let _ = writeln!(socket, "- a={}", state.sh.a);
+                                let _ = writeln!(socket, "- b={}", state.sh.b);
+                                let _ = writeln!(socket, "- c={}", state.sh.c);
+                                let _ = writeln!(socket, "- parallel_r={}", state.sh.parallel_r);
+                            }
+                        }
                         Command::Show(ShowCommand::PostFilter) => {
                             for (channel, _) in states.iter().enumerate() {
                                 match adc.get_postfilter(channel as u8).unwrap() {
@@ -410,6 +435,16 @@ fn main() -> ! {
                                     pid.update_parameters(|parameters| parameters.integral_max = value),
                             }
                             let _ = writeln!(socket, "PID parameter updated");
+                        }
+                        Command::SteinhartHart { channel, parameter, value } => {
+                            let sh = &mut states[channel].sh;
+                            use command_parser::ShParameter::*;
+                            match parameter {
+                                A => sh.a = value,
+                                B => sh.b = value,
+                                C => sh.c = value,
+                                ParallelR => sh.parallel_r = value,
+                            }
                         }
                         Command::PostFilter { channel, rate } => {
                             let filter = ad7172::PostFilter::closest(rate);

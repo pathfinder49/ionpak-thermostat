@@ -66,6 +66,7 @@ pub enum ShowCommand {
     Reporting,
     Pwm,
     Pid,
+    SteinhartHart,
     PostFilter,
 }
 
@@ -79,6 +80,15 @@ pub enum PidParameter {
     OutputMax,
     IntegralMin,
     IntegralMax,
+}
+
+/// Steinhart-Hart equation parameter
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShParameter {
+    A,
+    B,
+    C,
+    ParallelR,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +123,11 @@ pub enum Command {
     Pid {
         channel: usize,
         parameter: PidParameter,
+        value: f32,
+    },
+    SteinhartHart {
+        channel: usize,
+        parameter: ShParameter,
         value: f32,
     },
     PostFilter {
@@ -288,7 +303,7 @@ fn pid_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     Ok((input, result))
 }
 
-/// `pid` | pid_parameter
+/// `pid` | `pid <pid_parameter>`
 fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
     let (input, _) = tag("pid")(input)?;
     alt((
@@ -297,6 +312,35 @@ fn pid(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
             pid_parameter
         ),
         value(Ok(Command::Show(ShowCommand::Pid)), end)
+    ))(input)
+}
+
+/// `s-h <0-1> <parameter> <value>`
+fn steinhart_hart_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, channel) = channel(input)?;
+    let (input, _) = whitespace(input)?;
+    let (input, parameter) =
+        alt((value(ShParameter::A, tag("a")),
+             value(ShParameter::B, tag("b")),
+             value(ShParameter::C, tag("c")),
+             value(ShParameter::ParallelR, tag("parallel_resistance"))
+        ))(input)?;
+    let (input, _) = whitespace(input)?;
+    let (input, value) = float(input)?;
+    let result = value
+        .map(|value| Command::SteinhartHart { channel, parameter, value });
+    Ok((input, result))
+}
+
+/// `s-h` | `s-h <steinhart_hart_parameter>`
+fn steinhart_hart(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
+    let (input, _) = tag("s-h")(input)?;
+    alt((
+        preceded(
+            whitespace,
+            steinhart_hart_parameter
+        ),
+        value(Ok(Command::Show(ShowCommand::SteinhartHart)), end)
     ))(input)
 }
 
@@ -327,6 +371,7 @@ fn command(input: &[u8]) -> IResult<&[u8], Result<Command, Error>> {
          map(report, Ok),
          pwm,
          pid,
+         steinhart_hart,
          postfilter,
     ))(input)
 }
