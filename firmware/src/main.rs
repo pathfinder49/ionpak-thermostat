@@ -97,10 +97,10 @@ const DEFAULT_PID_PARAMETERS: pid::Parameters = pid::Parameters {
 };
 
 const DEFAULT_SH_PARAMETERS: sh::Parameters = sh::Parameters {
-    a: 0.01,
-    b: 0.01,
-    c: 0.01,
-    parallel_r: 55_000.0,  // Ohm (TODO: verify)
+    a: 0.001_4,
+    b: 0.000_237,
+    c: 0.000_000_099,
+    parallel_r: 5_110.0,  // Ohm (TODO: verify)
 };
 
 const PWM_PID_WIDTH: u16 = 0xffff;
