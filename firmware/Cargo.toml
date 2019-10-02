@@ -8,7 +8,7 @@ edition = "2018"
 walkdir = "1.0"
 
 [dependencies]
-libm = "0.1.2"
+libm = "0.1.4"
 cortex-m = { version = "0.5", features = ["const-fn"] }
 cortex-m-rt = "0.6"
 crc = { version = "1.7", default-features = false }
