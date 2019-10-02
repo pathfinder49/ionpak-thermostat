@@ -14,12 +14,14 @@ pub struct Parameters {
 }
 
 impl Parameters {
-    /// input: Voltage
+    /// Perform the voltage to temperature conversion.
     ///
     /// Result unit: Kelvin
-    pub fn get_temperature(&self, input: f32) -> f32 {
-        let r = self.parallel_r * input;
-        let ln_r = r.ln();
+    ///
+    /// TODO: verify
+    pub fn get_temperature(&self, voltage: f32) -> f32 {
+        let r = self.parallel_r * voltage;
+        let ln_r = r.abs().ln();
         let inv_temp = self.a +
             self.b * ln_r +
             self.c * ln_r * ln_r * ln_r;

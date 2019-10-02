@@ -100,7 +100,7 @@ const DEFAULT_SH_PARAMETERS: sh::Parameters = sh::Parameters {
     a: 0.01,
     b: 0.01,
     c: 0.01,
-    parallel_r: 100.0,  // TODO
+    parallel_r: 55_000.0,  // Ohm (TODO: verify)
 };
 
 const PWM_PID_WIDTH: u16 = 0xffff;
@@ -113,8 +113,8 @@ pub const CHANNELS: usize = 2;
 /// State per TEC channel
 #[derive(Clone)]
 struct ControlState {
-    /// Report data (time, data)
-    report: Option<(u64, u32)>,
+    /// Report data (time, data, temperature)
+    report: Option<(u64, i32, f32)>,
     pid_enabled: bool,
     pid: pid::Controller,
     sh: sh::Parameters,
@@ -258,6 +258,8 @@ fn main() -> ! {
                 let now = get_time();
                 let data = adc.read_data().unwrap();
                 let state = &mut states[usize::from(channel)];
+                let voltage = VCC * (data as f32) / (0x7FFFFF as f32);
+                let temperature = state.sh.get_temperature(voltage);
 
                 if state.pid_enabled {
                     let width = state.pid.update(data as f32) as u16;
@@ -268,7 +270,7 @@ fn main() -> ! {
                     }
                 }
 
-                state.report = Some((now, data));
+                state.report = Some((now, data, temperature));
                 for (session, _) in sessions_handles.iter_mut() {
                     session.set_report_pending(channel.into());
                 }
@@ -301,8 +303,11 @@ fn main() -> ! {
                         }
                         Command::Show(ShowCommand::Input) => {
                             for (channel, state) in states.iter().enumerate() {
-                                state.report.map(|(time, data)| {
-                                    let _ = writeln!(socket, "t={}, sens{}={}", time, channel, data);
+                                state.report.map(|(time, data, temp)| {
+                                    let _ = writeln!(
+                                        socket, "t={} temp{}={} raw{}=0x{:06X}",
+                                        time, channel, temp, channel, data
+                                    );
                                 });
                             }
                         }
@@ -470,8 +475,11 @@ fn main() -> ! {
             }
             if socket.may_send() {
                 if let Some(channel) = session.is_report_pending() {
-                    states[channel].report.map(|(time, data)| {
-                        let _ = writeln!(socket, "t={} sens{}={:06X}", time, channel, data);
+                    states[channel].report.map(|(time, data, temp)| {
+                        let _ = writeln!(
+                            socket, "t={} temp{}={} raw{}=0x{:06X}",
+                            time, channel, temp, channel, data
+                        );
                     });
                     session.mark_report_sent(channel);
                 }
