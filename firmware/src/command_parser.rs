@@ -323,7 +323,7 @@ fn steinhart_hart_parameter(input: &[u8]) -> IResult<&[u8], Result<Command, Erro
         alt((value(ShParameter::A, tag("a")),
              value(ShParameter::B, tag("b")),
              value(ShParameter::C, tag("c")),
-             value(ShParameter::ParallelR, tag("parallel_resistance"))
+             value(ShParameter::ParallelR, tag("parallel_r"))
         ))(input)?;
     let (input, _) = whitespace(input)?;
     let (input, value) = float(input)?;
@@ -503,6 +503,22 @@ mod test {
             channel: 1,
             parameter: PidParameter::IntegralMax,
             value: 2000.0,
+        }));
+    }
+
+    #[test]
+    fn parse_steinhart_hart() {
+        let command = Command::parse(b"s-h");
+        assert_eq!(command, Ok(Command::Show(ShowCommand::SteinhartHart)));
+    }
+
+    #[test]
+    fn parse_steinhart_hart_parallel_r() {
+        let command = Command::parse(b"s-h 1 parallel_r 23.05");
+        assert_eq!(command, Ok(Command::SteinhartHart {
+            channel: 1,
+            parameter: ShParameter::ParallelR,
+            value: 23.05,
         }));
     }
 

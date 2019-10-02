@@ -50,26 +50,26 @@ The scope of this setting is per TCP session.
 
 ### Commands
 
-| Syntax                                    | Function                                                   |
-| ---                                       | ---                                                        |
-| `report`                                  | Show current input                                         |
-| `report mode`                             | Show current report mode                                   |
-| `report mode <off/on>`                    | Set report mode                                            |
-| `pwm <0/1> max_i_pos <width> <total>`     | Set PWM duty cycle for **max_i_pos** to *width / total*    |
-| `pwm <0/1> max_i_neg <width> <total>`     | Set PWM duty cycle for **max_i_neg** to *width / total*    |
-| `pwm <0/1> max_v <width> <total>`         | Set PWM duty cycle for **max_v** to *width / total*        |
-| `pwm <0/1> <width> <total>`               | Set PWM duty cycle for **i_set** to manual *width / total* |
-| `pwm <0/1> pid`                           | Set PWM to be controlled by PID                            |
-| `pid`                                     | Show PID configuration                                     |
-| `pid <0/1> target <value>`                | Set the PID controller target                              |
-| `pid <0/1> kp <value>`                    | Set proportional gain                                      |
-| `pid <0/1> ki <value>`                    | Set integral gain                                          |
-| `pid <0/1> kd <value>`                    | Set differential gain                                      |
-| `pid <0/1> output_min <value>`            | Set mininum output                                         |
-| `pid <0/1> output_max <value>`            | Set maximum output                                         |
-| `pid <0/1> integral_min <value>`          | Set integral lower bound                                   |
-| `pid <0/1> integral_max <value>`          | Set integral upper bound                                   |
-| `s-h`                                     | Show Steinhart-Hart equation parameters                    |
-| `s-h <0/1> <a/b/c> <value>`               | Set Steinhart-Hart parameter for a channel                 |
-| `s-h <0/1> <parallel_resistance> <value>` | Set parallel resistance of the ADC                         |
-| `postfilter <0/1> rate <rate>`            | Set postfilter output data rate                            |
+| Syntax                                | Function                                                   |
+| ---                                   | ---                                                        |
+| `report`                              | Show current input                                         |
+| `report mode`                         | Show current report mode                                   |
+| `report mode <off/on>`                | Set report mode                                            |
+| `pwm <0/1> max_i_pos <width> <total>` | Set PWM duty cycle for **max_i_pos** to *width / total*    |
+| `pwm <0/1> max_i_neg <width> <total>` | Set PWM duty cycle for **max_i_neg** to *width / total*    |
+| `pwm <0/1> max_v <width> <total>`     | Set PWM duty cycle for **max_v** to *width / total*        |
+| `pwm <0/1> <width> <total>`           | Set PWM duty cycle for **i_set** to manual *width / total* |
+| `pwm <0/1> pid`                       | Set PWM to be controlled by PID                            |
+| `pid`                                 | Show PID configuration                                     |
+| `pid <0/1> target <value>`            | Set the PID controller target                              |
+| `pid <0/1> kp <value>`                | Set proportional gain                                      |
+| `pid <0/1> ki <value>`                | Set integral gain                                          |
+| `pid <0/1> kd <value>`                | Set differential gain                                      |
+| `pid <0/1> output_min <value>`        | Set mininum output                                         |
+| `pid <0/1> output_max <value>`        | Set maximum output                                         |
+| `pid <0/1> integral_min <value>`      | Set integral lower bound                                   |
+| `pid <0/1> integral_max <value>`      | Set integral upper bound                                   |
+| `s-h`                                 | Show Steinhart-Hart equation parameters                    |
+| `s-h <0/1> <a/b/c> <value>`           | Set Steinhart-Hart parameter for a channel                 |
+| `s-h <0/1> parallel_r <value>`        | Set parallel resistance of the ADC                         |
+| `postfilter <0/1> rate <rate>`        | Set postfilter output data rate                            |
