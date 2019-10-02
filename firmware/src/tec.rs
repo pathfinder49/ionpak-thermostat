@@ -60,6 +60,13 @@ impl Tec<pwm::T4CCP0, pwm::T4CCP1, pwm::T5CCP0, pwm::T5CCP1> {
 
 
 impl<MaxIPos: PwmChannel, MaxINeg: PwmChannel, ISet: PwmChannel, MaxV: PwmChannel> Tec<MaxIPos, MaxINeg, ISet, MaxV> {
+    pub fn setup(mut self, max: u16) -> Self {
+        self.max_i_pos.set(max, max);
+        self.max_i_neg.set(max, max);
+        self.max_v.set(max, max);
+        self
+    }
+
     pub fn get(&mut self, pin: TecPin) -> (u16, u16) {
         match pin {
             TecPin::MaxIPos =>

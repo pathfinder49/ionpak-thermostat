@@ -127,8 +127,8 @@ fn main() -> ! {
     writeln!(stdout, "tecpak boot").unwrap();
     board::init();
     writeln!(stdout, "board initialized").unwrap();
-    let mut tec0 = Tec::tec0();
-    let mut tec1 = Tec::tec1();
+    let mut tec0 = Tec::tec0().setup(PWM_PID_WIDTH);
+    let mut tec1 = Tec::tec1().setup(PWM_PID_WIDTH);
 
     println!(r#"
   _                         _
