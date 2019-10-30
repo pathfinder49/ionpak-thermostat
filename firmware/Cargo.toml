@@ -23,8 +23,9 @@ lexical-core = { version = "~0.6.1", default-features = false }
 nom = { version = "~5", default-features = false }
 
 [dependencies.smoltcp]
-version = "0.5.0"
-features = ["proto-ipv4", "socket-tcp"]
+git = "https://github.com/m-labs/smoltcp.git"
+rev = "0fedb1db9aa26712830822dd61f065deaa34d611"
+features = ["ethernet", "proto-ipv4", "socket-tcp"]
 default-features = false
 
 [dependencies.compiler_builtins]

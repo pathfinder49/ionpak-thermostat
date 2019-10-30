@@ -155,11 +155,11 @@ impl RxRing {
             (EMAC_RDES0_FS | EMAC_RDES0_LS)
     }
 
-    unsafe fn buf_as_slice<'a>(&self) -> &'a [u8] {
+    unsafe fn buf_as_slice<'a>(&self) -> &'a mut [u8] {
         let len  = (self.desc_buf[self.cur_desc + 0] & EMAC_RDES0_FL) >> 16;
         let len  = cmp::min(len as usize, ETH_RX_BUFFER_SIZE);
-        let addr = self.desc_buf[self.cur_desc + 2] as *const u8;
-        slice::from_raw_parts(addr, len)
+        let addr = self.desc_buf[self.cur_desc + 2] as *mut u8;
+        slice::from_raw_parts_mut(addr, len)
     }
 
     fn buf_release(&mut self) {
@@ -428,7 +428,7 @@ pub struct RxToken<'a>(&'a mut RxRing);
 
 impl<'a> phy::RxToken for RxToken<'a> {
     fn consume<R, F>(self, _timestamp: Instant, f: F) -> Result<R>
-            where F: FnOnce(&[u8]) -> Result<R> {
+            where F: FnOnce(&mut [u8]) -> Result<R> {
         let result = f(unsafe { self.0.buf_as_slice() });
         self.0.buf_release();
         result
