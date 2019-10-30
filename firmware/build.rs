@@ -3,10 +3,7 @@ extern crate walkdir;
 use std::env;
 use std::io::Write;
 use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-
-use walkdir::WalkDir;
+use std::path::PathBuf;
 
 fn linker_script() {
     // Put the linker script somewhere the linker can find it
