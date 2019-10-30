@@ -47,7 +47,7 @@ let
   firmware = xbuildRustPackage {
     name = "firmware";
     src = ./firmware;
-    cargoSha256 = "13nk3m9s7fy4anl89x5q88b7iar9y48ricj3k5ap741g2cll02dv";
+    cargoSha256 = "0gw2wlj3r35k3dxnfbshnd9gbni804l6wkqcxc7qx2cf576cfbmj";
     nativeBuildInputs = [
       gcc
     ];
