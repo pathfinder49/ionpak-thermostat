@@ -8,6 +8,7 @@ use smoltcp::time::Instant;
 use smoltcp::wire::{IpCidr, IpAddress, EthernetAddress};
 use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder};
 use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer};
+use embedded_hal::digital::v2::OutputPin;
 use cortex_m_semihosting::hio;
 
 #[macro_export]
@@ -141,6 +142,12 @@ fn main() -> ! {
                | |
                |_|             v1
 "#);
+    // TEC0 - SHDN
+    let mut pp2 = board::gpio::PP2.into_output();
+    pp2.set_low().unwrap();  // keep off until used
+    // TEC1 - SHDN
+    let mut pp3 = board::gpio::PP3.into_output();
+    pp3.set_low().unwrap();  // keep off until used
     // CSn
     let pb4 = board::gpio::PB4.into_output();
     // SCLK
@@ -200,13 +207,16 @@ fn main() -> ! {
     };
     let mut states = [init_state.clone(), init_state.clone()];
 
-    let mut hardware_addr = EthernetAddress(board::get_mac_address());
+    // let mut hardware_addr = EthernetAddress(board::get_mac_address());
+    let mut hardware_addr = EthernetAddress([0xb0, 0xd5, 0xcc, 0xfc, 0xfb, 0xf6]);
     writeln!(stdout, "MAC address: {}", hardware_addr).unwrap();
     if hardware_addr.is_multicast() {
         writeln!(stdout, "programmed MAC address is invalid, using default").unwrap();
-        hardware_addr = EthernetAddress([0x10, 0xE2, 0xD5, 0x00, 0x03, 0x00]);
+        hardware_addr = EthernetAddress([0xb0, 0xd5, 0xcc, 0xfc, 0xfb, 0xf6]);
     }
-    let mut ip_addrs = [IpCidr::new(IpAddress::v4(192, 168, 1, 26), 24)];
+
+    // let mut hardware_addr = EthernetAddress([0xb0, 0xd5, 0xcc, 0xfc, 0xfb, 0xf6]);
+    let mut ip_addrs = [IpCidr::new(IpAddress::v4(10, 255, 6, 169), 24)];
     println!("MAC {} IP {}", hardware_addr, ip_addrs[0]);
     let mut neighbor_cache_storage = [None; 8];
     let neighbor_cache = NeighborCache::new(&mut neighbor_cache_storage[..]);
@@ -249,6 +259,10 @@ fn main() -> ! {
         (Session::new(), tcp_handle7),
     ];
 
+    tec0.set(TecPin::ISet, PWM_PID_WIDTH/2, PWM_PID_WIDTH);
+    tec1.set(TecPin::ISet, PWM_PID_WIDTH/2, PWM_PID_WIDTH);
+    pp2.set_high().unwrap();
+    pp3.set_high().unwrap();
     loop {
         // ADC input
         adc.data_ready()
